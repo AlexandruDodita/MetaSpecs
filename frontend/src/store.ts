@@ -1,10 +1,20 @@
 import type { Edge, Node, NodeChange, EdgeChange } from '@xyflow/react'
 import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
-import type { AppEdge, AppNode, Layer, LayerGraph, TableNodeData } from './types'
+import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ShapeKind } from './types'
 import { loadGraph, saveGraph } from './api'
 
-export type Tool = 'select' | 'table' | 'wire'
+export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'wire'
+export type PlaceableTool = 'rect' | 'circle' | 'table'
+
+/** Live drag-to-draw rectangle in flow coordinates. */
+export interface Drawing {
+  kind: ShapeKind | 'table'
+  x: number
+  y: number
+  w: number
+  h: number
+}
 
 const EMPTY_GRAPH: LayerGraph = { nodes: [], edges: [] }
 
@@ -14,8 +24,9 @@ interface GraphState {
   dirty: Record<Layer, boolean>
   tool: Tool
   wireSource: string | null
+  drawing: Drawing | null
   editingNodeId: string | null
-  editDraft: TableNodeData | null
+  editDraft: EditDraft | null
   selectedNodeIds: string[]
   setActiveLayer: (layer: Layer) => void
   setTool: (tool: Tool) => void
@@ -36,6 +47,11 @@ interface GraphState {
   duplicateNode: (layer: Layer, nodeId: string) => void
   clearLayer: (layer: Layer) => void
   updateNodeData: (layer: Layer, nodeId: string, data: Partial<AppNode['data']>) => void
+  updateEdgeLabel: (layer: Layer, edgeId: string, label: string) => void
+  updateNodeSize: (layer: Layer, nodeId: string, width: number, height: number) => void
+  startDrawing: (kind: Drawing['kind'], x: number, y: number) => void
+  updateDrawing: (x: number, y: number) => void
+  finishDrawing: () => void
   startEditing: (layer: Layer, nodeId: string) => void
   cancelEditing: (layer: Layer) => void
   commitEditing: (layer: Layer) => void
@@ -53,6 +69,10 @@ function makeEdge(layer: Layer, source: string, target: string, sourceHandle?: s
     type: 'smoothstep',
     markerEnd: { type: MarkerType.ArrowClosed },
     style: { stroke: '#7a8bff' },
+    labelStyle: { fill: '#dfe6ff', fontSize: 11, fontWeight: 600 },
+    labelBgPadding: [4, 4] as [number, number],
+    labelBgBorderRadius: 4,
+    labelBgStyle: { fill: '#1f2127', fillOpacity: 0.9 },
   }
 }
 
@@ -62,6 +82,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   dirty: { backend: false, db: false, frontend: false },
   tool: 'select',
   wireSource: null,
+  drawing: null,
   editingNodeId: null,
   editDraft: null,
   selectedNodeIds: [],
@@ -71,7 +92,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ activeLayer: layer, wireSource: null, selectedNodeIds: [] })
   },
 
-  setTool: (tool) => set({ tool, wireSource: null }),
+  setTool: (tool) => set({ tool, wireSource: null, drawing: null }),
 
   setWireSource: (nodeId) => set({ wireSource: nodeId }),
 
@@ -202,6 +223,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       dirty: { ...state.dirty, [layer]: true },
       editingNodeId: null,
       wireSource: null,
+      drawing: null,
       selectedNodeIds: [],
     })),
 
@@ -219,16 +241,64 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       dirty: { ...state.dirty, [layer]: true },
     })),
 
+  updateEdgeLabel: (layer, edgeId, label) =>
+    set((state) => ({
+      graphs: {
+        ...state.graphs,
+        [layer]: {
+          ...state.graphs[layer],
+          edges: state.graphs[layer].edges.map((e) =>
+            e.id === edgeId ? { ...e, label: label || undefined } : e,
+          ),
+        },
+      },
+      dirty: { ...state.dirty, [layer]: true },
+    })),
+
+  updateNodeSize: (layer, nodeId, width, height) =>
+    set((state) => ({
+      graphs: {
+        ...state.graphs,
+        [layer]: {
+          ...state.graphs[layer],
+          nodes: state.graphs[layer].nodes.map((n) =>
+            n.id === nodeId
+              ? { ...n, style: { ...n.style, width, height } }
+              : n,
+          ),
+        },
+      },
+      dirty: { ...state.dirty, [layer]: true },
+    })),
+
+  startDrawing: (kind, x, y) => set({ drawing: { kind, x, y, w: 0, h: 0 } }),
+
+  updateDrawing: (x, y) => {
+    const d = get().drawing
+    if (!d) return
+    set({
+      drawing: {
+        ...d,
+        x: Math.min(d.x, x),
+        y: Math.min(d.y, y),
+        w: Math.abs(x - d.x),
+        h: Math.abs(y - d.y),
+      },
+    })
+  },
+
+  finishDrawing: () => set({ drawing: null }),
+
   startEditing: (layer, nodeId) => {
     const node = get().graphs[layer].nodes.find((n) => n.id === nodeId)
     if (!node) return
+    const data = node.data as Partial<{ label: string; columns: ColumnLike[]; items: string[] }>
     set({
       editingNodeId: nodeId,
       editDraft: {
-        label: (node.data.label as string) ?? '',
-        columns: ((node.data.columns as { name: string; type: string; constraint: string }[]) ?? []).map(
-          (c) => ({ ...c }),
-        ),
+        label: data.label ?? '',
+        columns: (data.columns ?? []).map((c) => ({ ...c })),
+        items: [...(data.items ?? [])],
       },
       selectedNodeIds: [nodeId],
     })
@@ -237,7 +307,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   cancelEditing: (layer) => {
     const { editingNodeId, editDraft } = get()
     if (!editingNodeId || !editDraft) return
-    get().updateNodeData(layer, editingNodeId, editDraft)
+    get().updateNodeData(layer, editingNodeId, {
+      label: editDraft.label,
+      columns: editDraft.columns,
+      items: editDraft.items,
+    })
     set({ editingNodeId: null, editDraft: null })
   },
 
@@ -262,6 +336,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ graphs: { backend, db, frontend } })
   },
 }))
+
+interface ColumnLike {
+  name: string
+  type: string
+  constraint: string
+}
 
 export const useLayerNodes = (layer: Layer) =>
   useGraphStore((state) => state.graphs[layer].nodes)

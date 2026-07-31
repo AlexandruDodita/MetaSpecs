@@ -215,11 +215,12 @@ function SchemaView({ id }: { id: string }) {
   )
 }
 
-function TableNode({ id, selected }: NodeProps) {
+function TableNode({ id }: NodeProps) {
   const activeLayer = useGraphStore((s) => s.activeLayer)
   const editingNodeId = useGraphStore((s) => s.editingNodeId)
   const setEditingNode = useGraphStore((s) => s.startEditing)
   const commitEditing = useGraphStore((s) => s.commitEditing)
+  const updateNodeSize = useGraphStore((s) => s.updateNodeSize)
 
   const isEditing = editingNodeId === id
 
@@ -231,8 +232,8 @@ function TableNode({ id, selected }: NodeProps) {
       <NodeResizer
         minWidth={260}
         minHeight={120}
-        isVisible={selected}
         color="#7a8bff"
+        onResizeEnd={(_event, params) => updateNodeSize(activeLayer, id, params.width, params.height)}
       />
       <Handle
         id="in"

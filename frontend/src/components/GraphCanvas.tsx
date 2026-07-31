@@ -1,6 +1,6 @@
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap } from '@xyflow/react'
-import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
-import { useCallback, useEffect, useState } from 'react'
+import { ReactFlowProvider, useReactFlow, useStoreApi } from '@xyflow/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   Node,
   Edge,
@@ -11,18 +11,39 @@ import type {
 } from '@xyflow/react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import '@xyflow/react/dist/style.css'
-import type { Layer } from '../types'
+import type { AppNode, Layer } from '../types'
 import { useGraphStore, useLayerNodes, useLayerEdges } from '../store'
+import type { PlaceableTool } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
 import { ContextMenu } from './ContextMenu'
 import TableNode from './TableNode'
+import ShapeNode from './ShapeNode'
+import PreviewNode from './PreviewNode'
+import { makeNode } from '../nodeFactory'
 
-const nodeTypes = { table: TableNode }
+const nodeTypes = { table: TableNode, shape: ShapeNode, preview: PreviewNode }
+
+const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set(['rect', 'circle', 'table'])
 
 interface MenuState {
   items: ReturnType<typeof buildPaneMenu>
   x: number
   y: number
+}
+
+const TOOL_HINT: Record<PlaceableTool, string> = {
+  rect: 'Drag on the canvas to draw a rectangle',
+  circle: 'Drag on the canvas to draw a circle',
+  table: 'Drag on the canvas to draw a table',
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+    return true
+  }
+  return el.isContentEditable
 }
 
 function CanvasInner({ layer }: { layer: Layer }) {
@@ -33,13 +54,30 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const onConnect = useGraphStore((s) => s.onConnect)
   const tool = useGraphStore((s) => s.tool)
   const wireSource = useGraphStore((s) => s.wireSource)
+  const drawing = useGraphStore((s) => s.drawing)
   const setWireSource = useGraphStore((s) => s.setWireSource)
   const connectNodes = useGraphStore((s) => s.connectNodes)
   const addNodeAt = useGraphStore((s) => s.addNodeAt)
   const setSelectedNodeIds = useGraphStore((s) => s.setSelectedNodeIds)
   const setTool = useGraphStore((s) => s.setTool)
   const commitEditing = useGraphStore((s) => s.commitEditing)
-  const { screenToFlowPosition } = useReactFlow()
+  const startDrawing = useGraphStore((s) => s.startDrawing)
+  const updateDrawing = useGraphStore((s) => s.updateDrawing)
+  const { screenToFlowPosition, fitView } = useReactFlow()
+  const storeApi = useStoreApi()
+  const fittedRef = useRef(false)
+  const dirty = useGraphStore((s) => s.dirty[layer])
+
+  useEffect(() => {
+    fittedRef.current = false
+  }, [layer])
+
+  useEffect(() => {
+    if (nodes.length === 0 || fittedRef.current || dirty) return
+    fittedRef.current = true
+    const timer = window.setTimeout(() => void fitView({ padding: 0.2 }), 0)
+    return () => window.clearTimeout(timer)
+  }, [nodes.length, fitView, dirty])
 
   const [menu, setMenu] = useState<MenuState | null>(null)
 
@@ -75,6 +113,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleNodeClick = useCallback<NodeMouseHandler>(
     (_, node) => {
+      if (PLACEMENT_TOOLS.has(tool as PlaceableTool)) return
       if (tool === 'wire') {
         if (!wireSource) {
           setWireSource(node.id)
@@ -91,27 +130,77 @@ function CanvasInner({ layer }: { layer: Layer }) {
     [tool, wireSource, layer, connectNodes, setWireSource, setTool, commitEditing, setSelectedNodeIds],
   )
 
-  const handlePaneClick = useCallback(
-    (event: ReactMouseEvent) => {
+  useEffect(() => {
+    if (!PLACEMENT_TOOLS.has(tool as PlaceableTool)) return
+    const pane = storeApi
+      .getState()
+      .domNode?.querySelector('.react-flow__pane') as HTMLDivElement | null
+    if (!pane) return
+    const onMouseDown = (event: globalThis.MouseEvent) => {
+      if (event.button !== 0) return
       closeMenu()
       commitEditing(layer)
-      if (tool === 'table') {
-        const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
-        addNodeAt(layer, {
-          id: `n-${Date.now()}`,
-          type: 'table',
-          position,
-          data: {
-            label: 'table',
-            columns: [{ name: 'id', type: 'uuid', constraint: 'PRIMARY KEY' }],
-          },
-        })
-      } else if (tool === 'wire' && wireSource) {
-        setWireSource(null)
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      startDrawing(tool as PlaceableTool, position.x, position.y)
+    }
+    pane.addEventListener('mousedown', onMouseDown)
+    return () => pane.removeEventListener('mousedown', onMouseDown)
+  }, [tool, storeApi, closeMenu, commitEditing, layer, screenToFlowPosition, startDrawing])
+
+  const handlePaneClick = useCallback(() => {
+    closeMenu()
+    commitEditing(layer)
+    if (tool === 'wire' && wireSource) {
+      setWireSource(null)
+    }
+  }, [closeMenu, commitEditing, layer, tool, wireSource, setWireSource])
+
+  const buildDrawNode = useCallback(
+    (drawing: ReturnType<typeof useGraphStore.getState>['drawing']) => {
+      if (!drawing) return null
+      const kind = drawing.kind === 'table' ? 'table' : drawing.kind
+      const previewNode: AppNode = {
+        id: '__draw__',
+        type: 'preview',
+        position: { x: drawing.x, y: drawing.y },
+        style: { width: Math.max(drawing.w, 1), height: Math.max(drawing.h, 1) },
+        data: { kind },
+        draggable: false,
+        selectable: false,
+        connectable: false,
+        focusable: false,
       }
+      return previewNode
     },
-    [closeMenu, commitEditing, tool, wireSource, layer, screenToFlowPosition, addNodeAt, setWireSource],
+    [],
   )
+  const drawNode = buildDrawNode(drawing)
+  const isDrawing = drawing !== null
+
+  useEffect(() => {
+    if (!isDrawing) return
+    const handleMove = (event: globalThis.MouseEvent) => {
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      updateDrawing(position.x, position.y)
+    }
+    const handleUp = () => {
+      const state = useGraphStore.getState()
+      const d = state.drawing
+      if (d && Math.abs(d.w) >= 8 && Math.abs(d.h) >= 8) {
+        state.addNodeAt(
+          layer,
+          makeNode(d.kind, d.x, d.y, Math.abs(d.w), Math.abs(d.h)),
+        )
+      }
+      state.finishDrawing()
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [isDrawing, layer, screenToFlowPosition, updateDrawing, addNodeAt])
 
   const handlePaneContextMenu = useCallback(
     (event: ReactMouseEvent | MouseEvent) => {
@@ -149,7 +238,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleNodeDoubleClick = useCallback<NodeMouseHandler>(
     (_, node) => {
-      if (tool === 'wire') return
+      if (tool !== 'select') return
       useGraphStore.getState().startEditing(layer, node.id)
     },
     [layer, tool],
@@ -157,12 +246,25 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (isEditableTarget(event.target)) return
+      const key = event.key.toLowerCase()
+      if (key === 'escape') {
         closeMenu()
+        if (useGraphStore.getState().drawing) useGraphStore.getState().finishDrawing()
         if (wireSource) setWireSource(null)
+        return
       }
+      const toolByKey: Record<string, PlaceableTool | 'select' | 'wire'> = {
+        v: 'select',
+        r: 'rect',
+        c: 'circle',
+        t: 'table',
+        w: 'wire',
+      }
+      const next = toolByKey[key]
+      if (next && next !== tool) setTool(next)
     },
-    [closeMenu, wireSource, setWireSource],
+    [closeMenu, wireSource, setWireSource, tool, setTool],
   )
 
   useEffect(() => {
@@ -170,10 +272,14 @@ function CanvasInner({ layer }: { layer: Layer }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  const renderNodes = (
+    drawNode ? [...nodes, drawNode] : nodes
+  ) as unknown as Node[]
+
   return (
     <div className="canvas">
       <ReactFlow
-        nodes={nodes as unknown as Node[]}
+        nodes={renderNodes}
         edges={edges as unknown as Edge[]}
         nodeTypes={nodeTypes}
         onNodesChange={handleNodesChange}
@@ -189,22 +295,30 @@ function CanvasInner({ layer }: { layer: Layer }) {
         colorMode="dark"
         deleteKeyCode={['Backspace', 'Delete']}
         connectionRadius={24}
-        fitView
+        panOnDrag={tool === 'select' || tool === 'wire'}
+        panOnScroll
+        selectionOnDrag={tool === 'select'}
+        zoomOnDoubleClick={tool === 'select'}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls />
         <MiniMap pannable zoomable />
       </ReactFlow>
       {menu && <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={closeMenu} />}
+      {drawing && tool !== 'select' && (
+        <div className="canvas__hint">
+          {Math.round(drawing.w)} × {Math.round(drawing.h)}
+        </div>
+      )}
       {tool === 'wire' && (
         <div className="canvas__hint">
-          {wireSource ? 'Click a target table to wire it' : 'Click a source table'}
+          {wireSource ? 'Click a target node to wire it' : 'Click a source node'}
           <button onClick={() => setTool('select')}>cancel</button>
         </div>
       )}
-      {tool === 'table' && (
+      {PLACEMENT_TOOLS.has(tool as PlaceableTool) && !drawing && (
         <div className="canvas__hint">
-          Click the canvas to place a table
+          {TOOL_HINT[tool as PlaceableTool]}
           <button onClick={() => setTool('select')}>cancel</button>
         </div>
       )}

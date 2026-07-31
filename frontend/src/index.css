@@ -364,7 +364,10 @@ button:disabled {
   border: 1px solid #4a67a8;
   border-radius: 8px;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
   min-width: 260px;
+  min-height: 120px;
   font-size: 12px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
 }
@@ -588,6 +591,184 @@ button:disabled {
   padding: 4px 12px;
 }
 
+/* ---- Shape nodes: rectangles (label + items) and circles ---- */
+
+.shape-node {
+  background: #1f2127;
+  border: 1px solid #4a67a8;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-width: 60px;
+  min-height: 60px;
+  font-size: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.shape-node--circle {
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.shape-node--editing {
+  border-color: #e8c14b;
+}
+
+.shape-node__inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shape-node__inner--circle {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+}
+
+.shape-node__header {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: #dfe6ff;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #2a3350, #242c45);
+  border-bottom: 1px solid #4a67a8;
+  text-align: left;
+}
+
+.shape-node__clabel {
+  font-weight: 700;
+  color: #dfe6ff;
+  line-height: 1.2;
+}
+
+.shape-node__items {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 4px 10px 6px 24px;
+  overflow: hidden;
+  list-style: square;
+  color: #b8c3e8;
+}
+
+.shape-node__items li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+}
+
+.shape-node__items--circle {
+  padding: 4px 12px 2px;
+  text-align: left;
+}
+
+.shape-node--circle .shape-node__items {
+  font-size: 11px;
+}
+
+/* ---- Shape node: edit mode ---- */
+
+.shape-edit {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #1f2127;
+  width: 100%;
+  height: 100%;
+}
+
+.shape-edit__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8c14b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shape-edit__input,
+.shape-edit__items {
+  background: #16171b;
+  color: #e6e6e6;
+  border: 1px solid #34363f;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.shape-edit__input {
+  font-weight: 600;
+}
+
+.shape-edit__items {
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.shape-edit__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.shape-edit__actions button {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+/* ---- Drag-to-draw preview ---- */
+
+.preview {
+  width: 100%;
+  height: 100%;
+  border: 1.5px dashed #7a8bff;
+  background: rgba(122, 139, 255, 0.12);
+  border-radius: 6px;
+}
+
+.preview--circle {
+  border-radius: 50%;
+}
+
+.react-flow__node-preview {
+  pointer-events: none;
+}
+
+/* ---- Resize handles: always rendered, revealed on hover/selection ---- */
+
+.react-flow__resize-control {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.react-flow__node:hover .react-flow__resize-control,
+.react-flow__node.selected .react-flow__resize-control {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.react-flow__resize-control.handle {
+  width: 10px;
+  height: 10px;
+  background: #7a8bff;
+  border: 2px solid #16171b;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.react-flow__resize-control.line {
+  background: rgba(122, 139, 255, 0.55);
+}
+
 /* React Flow dark-mode internals: keep controls visible on dark canvas */
 .react-flow__controls button {
   background: #26272e;
@@ -610,6 +791,11 @@ button:disabled {
   stroke-width: 1.5;
 }
 
-.react-flow__node.selected .table-node {
+.react-flow__edge-text {
+  font-size: 11px;
+}
+
+.react-flow__node.selected .table-node,
+.react-flow__node.selected .shape-node {
   box-shadow: 0 0 0 1.5px #7a8bff, 0 6px 24px rgba(0, 0, 0, 0.55);
 }

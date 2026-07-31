@@ -4,7 +4,9 @@ import type { Layer } from '../types'
 
 const TOOLS: { id: Tool; icon: string; label: string; key: string }[] = [
   { id: 'select', icon: '⯈', label: 'Select / move', key: 'V' },
-  { id: 'table', icon: '▦', label: 'Add table (click canvas)', key: 'T' },
+  { id: 'rect', icon: '▭', label: 'Draw rectangle (drag on canvas)', key: 'R' },
+  { id: 'circle', icon: '◯', label: 'Draw circle (drag on canvas)', key: 'C' },
+  { id: 'table', icon: '▦', label: 'Draw table (drag on canvas)', key: 'T' },
   { id: 'wire', icon: '∿', label: 'Wire tool (click source, then target)', key: 'W' },
 ]
 
@@ -41,7 +43,7 @@ export function Toolbar() {
 
       <button
         className="toolbar__btn"
-        title="Edit selected table"
+        title="Edit selected node"
         disabled={!hasSelection}
         onClick={() => startEditing(layer, selected[0])}
       >
@@ -49,7 +51,7 @@ export function Toolbar() {
       </button>
       <button
         className="toolbar__btn"
-        title="Duplicate selected table"
+        title="Duplicate selected node"
         disabled={!hasSelection}
         onClick={() => selected.forEach((id) => duplicateNode(layer, id))}
       >
@@ -57,7 +59,7 @@ export function Toolbar() {
       </button>
       <button
         className="toolbar__btn toolbar__btn--danger"
-        title="Delete selected tables"
+        title="Delete selected nodes"
         disabled={!hasSelection}
         onClick={() => removeNodes(layer, selected)}
       >

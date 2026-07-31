@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 LAYER_FILE: dict[str, str] = {
     "backend": "data/backend.graph.json",
@@ -20,6 +20,10 @@ SEVERITY = Literal["error", "warning", "info"]
 
 
 class GraphNode(BaseModel):
+    # React Flow v12 node state is stored as-is; extra fields (style, measured,
+    # selected, …) are passthrough so sizes/selection survive a round-trip.
+    model_config = ConfigDict(extra="allow")
+
     id: str
     type: str = "table"
     position: dict[str, float]
@@ -27,6 +31,8 @@ class GraphNode(BaseModel):
 
 
 class GraphEdge(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     id: str
     source: str
     target: str

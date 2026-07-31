@@ -2,6 +2,10 @@ import type { Edge, Node } from '@xyflow/react'
 
 export type Layer = 'backend' | 'db' | 'frontend'
 
+export type NodeType = 'table' | 'shape' | 'preview'
+
+export type ShapeKind = 'rect' | 'circle'
+
 export interface Column {
   name: string
   type: string
@@ -14,14 +18,37 @@ export interface TableNodeData {
   [key: string]: unknown
 }
 
-export type GraphNodeData = TableNodeData | Record<string, never>
+export interface ShapeNodeData {
+  kind: ShapeKind
+  label: string
+  items: string[]
+  [key: string]: unknown
+}
 
-export type AppNode = Node<GraphNodeData, 'table'>
+export interface PreviewNodeData {
+  kind: 'table' | ShapeKind
+  [key: string]: unknown
+}
+
+export type GraphNodeData =
+  | TableNodeData
+  | ShapeNodeData
+  | PreviewNodeData
+  | Record<string, never>
+
+export type AppNode = Node<GraphNodeData, NodeType>
 export type AppEdge = Edge
 
 export interface LayerGraph {
   nodes: AppNode[]
   edges: AppEdge[]
+}
+
+/** Snapshot of a node's editable fields, taken when editing starts (for cancel). */
+export interface EditDraft {
+  label: string
+  columns: Column[]
+  items: string[]
 }
 
 export type Severity = 'error' | 'warning' | 'info'

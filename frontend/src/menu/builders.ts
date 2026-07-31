@@ -1,21 +1,15 @@
 import { useGraphStore } from '../store'
-import type { AppNode } from '../types'
 import { MenuAction, MenuSeparator, MenuSubmenu } from './types'
 import type { MenuContext, MenuItem } from './types'
-
-function newNode(x: number, y: number): AppNode {
-  return {
-    id: `n-${Date.now()}`,
-    type: 'table',
-    position: { x, y },
-    data: { label: 'table', columns: [{ name: 'id', type: 'uuid', constraint: 'PRIMARY KEY' }] },
-  }
-}
+import { makeNode } from '../nodeFactory'
 
 export function buildPaneMenu(ctx: MenuContext): MenuItem[] {
   const store = useGraphStore.getState()
   return [
-    new MenuAction('Add table', () => store.addNodeAt(ctx.layer, newNode(ctx.x, ctx.y)), '+'),
+    new MenuAction('Add rectangle', () => store.addNodeAt(ctx.layer, makeNode('rect', ctx.x, ctx.y)), '▭'),
+    new MenuAction('Add circle', () => store.addNodeAt(ctx.layer, makeNode('circle', ctx.x, ctx.y)), '◯'),
+    new MenuAction('Add table', () => store.addNodeAt(ctx.layer, makeNode('table', ctx.x, ctx.y)), '+'),
+    new MenuSeparator(),
     new MenuAction(
       'Wire tool',
       () => store.setTool('wire'),
@@ -39,6 +33,8 @@ export function buildPaneMenu(ctx: MenuContext): MenuItem[] {
 export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
   const store = useGraphStore.getState()
   const layer = ctx.layer
+  const node = store.graphs[layer].nodes.find((n) => n.id === nodeId)
+  const isShape = node?.type === 'shape'
   const targets = store.graphs[layer].nodes.filter((n) => n.id !== nodeId)
   const nodeLabel = (id: string) =>
     store.graphs[layer].nodes.find((n) => n.id === id)?.data.label ?? id
@@ -51,15 +47,19 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
             () => store.connectNodes(layer, nodeId, t.id),
           ),
         )
-      : [new MenuAction('No other tables', () => undefined)]
+      : [new MenuAction('No other nodes', () => undefined)]
 
   return [
-    new MenuAction('Edit table', () => store.startEditing(layer, nodeId), '✎'),
+    new MenuAction(
+      isShape ? 'Edit shape' : 'Edit table',
+      () => store.startEditing(layer, nodeId),
+      '✎',
+    ),
     new MenuSubmenu('Wire from here', wireTargets, '∿'),
     new MenuSeparator(),
     new MenuAction('Duplicate', () => store.duplicateNode(layer, nodeId), '⧉'),
     new MenuAction(
-      'Delete table',
+      'Delete',
       () => store.removeNodes(layer, [nodeId]),
       '🗑',
       true,
@@ -69,7 +69,19 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
 
 export function buildEdgeMenu(ctx: MenuContext, edgeId: string): MenuItem[] {
   const store = useGraphStore.getState()
+  const layer = ctx.layer
+  const edge = store.graphs[layer].edges.find((e) => e.id === edgeId)
   return [
+    new MenuAction(
+      'Label edge…',
+      () => {
+        const label = window.prompt('Edge label', edge?.label ? String(edge.label) : '')
+        if (label !== null) {
+          store.updateEdgeLabel(layer, edgeId, label)
+        }
+      },
+      '🏷',
+    ),
     new MenuAction('Delete connection', () => store.removeEdges(ctx.layer, [edgeId]), '🗑', true),
   ]
 }
