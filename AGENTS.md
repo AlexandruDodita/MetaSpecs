@@ -18,10 +18,17 @@ agent-execution loop (MVP stops at tasks.json).
   in `backend/services/`: `storage.py` (JSON file IO), `llm.py` (OpenAI +
   instructor client), `validate.py`, `compile.py`.
 - `frontend/` — Vite app (run everything with `npm --prefix frontend ...`).
-  `src/types.ts` shared types; `src/store.ts` all Zustand graph state;
+  `src/types.ts` shared types; `src/store.ts` all Zustand graph state (graphs,
+  active layer, tools `select|table|wire`, edit mode, selection);
   `src/api.ts` fetch helpers; `src/components/GraphCanvas.tsx` one
-  `<ReactFlow>` per layer; `src/components/TableNode.tsx` custom node with
-  inline editable column grid.
+  `<ReactFlow>` per layer (context menus, wire tool, dark mode);
+  `src/components/TableNode.tsx` custom node with two modes: display
+  (Oracle-style schema rows, one left/right handle pair per column) and edit
+  (dropdowns, save/cancel/outside-click); `src/components/ContextMenu.tsx` +
+  `src/menu/` (OOP menu model: `MenuAction`/`MenuSubmenu`/`MenuSeparator`,
+  builders per context in `builders.ts`); `src/components/Toolbar.tsx` left
+  mini sidebar reusing the same store actions; `src/schema-options.ts` column
+  type/constraint dropdown options.
 - `data/` — runtime JSON, gitignored: `backend.graph.json`, `db.schema.json`,
   `frontend.graph.json`, `validation-report.json`, `tasks.json`.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
@@ -37,7 +44,8 @@ agent-execution loop (MVP stops at tasks.json).
 - Single-process serve: `npm --prefix frontend run build`, then uvicorn serves
   `frontend/dist` (main.py mounts it only if it exists).
 - No test framework. Verify with `python -c` / FastAPI TestClient scripts
-  (`httpx` is in requirements.txt for TestClient).
+  (`httpx` is in requirements.txt for TestClient). Playwright (devDep in
+  `frontend/`) is used for browser smoke tests.
 
 ## Contracts
 
@@ -69,10 +77,17 @@ Stored graph JSON is serializable React Flow v12 state:
 
 - `GraphNode.data` is Pydantic `dict[str, Any]`; the table shape lives in
   `src/types.ts` (`TableNodeData`). Keep both in sync when changing the shape.
-- `constraint` is free-text (e.g. "PRIMARY KEY", "NOT NULL"), never an enum.
+- `constraint` is free-text (e.g. "PRIMARY KEY", "NOT NULL"), never an enum;
+  the edit-mode dropdowns in `TableNode.tsx` are suggestions only.
 - All graph mutation flows through Zustand actions in `src/store.ts` using
   `applyNodeChanges`/`applyEdgeChanges`; cast changes/nodes/edges to React Flow
   `NodeChange[]`/`Node[]` at that boundary (`as unknown as ...` where TS
   disagrees).
 - `nodeTypes = { table: TableNode }`; the custom node reads `activeLayer` from
   the store so its actions target the right layer.
+- Table edit state lives in the store (`editingNodeId`/`editDraft`), NOT in
+  node data — the stored graph JSON must stay serializable.
+- Clicks inside the edit form must `stopPropagation()` or React Flow's
+  `onNodeClick` will commit+close the form mid-edit.
+- `<ReactFlow colorMode="dark">` handles controls/minimap theming; extra dark
+  overrides live in `src/index.css`.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Layer, TaskList, ValidationReport } from './types'
 import { useGraphStore } from './store'
 import { GraphCanvas } from './components/GraphCanvas'
+import { Toolbar } from './components/Toolbar'
 import { runCompile, runValidate } from './api'
 
 const LAYERS: { key: Layer; label: string }[] = [
@@ -19,7 +20,6 @@ const SEVERITY_LABEL: Record<string, string> = {
 function App() {
   const activeLayer = useGraphStore((s) => s.activeLayer)
   const setActiveLayer = useGraphStore((s) => s.setActiveLayer)
-  const addNode = useGraphStore((s) => s.addNode)
   const persist = useGraphStore((s) => s.persist)
   const dirty = useGraphStore((s) => s.dirty)
   const loadAll = useGraphStore((s) => s.loadAll)
@@ -33,16 +33,6 @@ function App() {
   useEffect(() => {
     loadAll().catch((e: Error) => setError(e.message))
   }, [loadAll])
-
-  const addTable = () => {
-    const offset = (Object.keys(useGraphStore.getState().graphs[activeLayer].nodes).length + 1) * 40
-    addNode(activeLayer, {
-      id: `n-${Date.now()}`,
-      type: 'table',
-      position: { x: 100 + offset, y: 100 + offset },
-      data: { label: 'table', columns: [{ name: 'id', type: 'uuid', constraint: 'PRIMARY KEY' }] },
-    })
-  }
 
   const save = async () => {
     setError(null)
@@ -93,8 +83,7 @@ function App() {
             </button>
           ))}
         </div>
-        <div className="toolbar">
-          <button onClick={addTable}>+ Table</button>
+        <div className="header-actions">
           <button onClick={save} disabled={!dirty[activeLayer]}>
             Save
           </button>
@@ -102,6 +91,7 @@ function App() {
       </header>
 
       <main className="app__body">
+        <Toolbar />
         <div className="canvas-wrap">
           <GraphCanvas layer={activeLayer} />
         </div>

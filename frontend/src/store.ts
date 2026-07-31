@@ -1,8 +1,10 @@
 import type { Edge, Node, NodeChange, EdgeChange } from '@xyflow/react'
-import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
+import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
-import type { AppEdge, AppNode, Layer, LayerGraph } from './types'
+import type { AppEdge, AppNode, Layer, LayerGraph, TableNodeData } from './types'
 import { loadGraph, saveGraph } from './api'
+
+export type Tool = 'select' | 'table' | 'wire'
 
 const EMPTY_GRAPH: LayerGraph = { nodes: [], edges: [] }
 
@@ -10,25 +12,70 @@ interface GraphState {
   graphs: Record<Layer, LayerGraph>
   activeLayer: Layer
   dirty: Record<Layer, boolean>
+  tool: Tool
+  wireSource: string | null
+  editingNodeId: string | null
+  editDraft: TableNodeData | null
+  selectedNodeIds: string[]
   setActiveLayer: (layer: Layer) => void
+  setTool: (tool: Tool) => void
+  setWireSource: (nodeId: string | null) => void
+  setSelectedNodeIds: (ids: string[]) => void
   onNodesChange: (layer: Layer, changes: NodeChange[]) => void
   onEdgesChange: (layer: Layer, changes: EdgeChange[]) => void
-  onConnect: (layer: Layer, edge: AppEdge) => void
-  addNode: (layer: Layer, node: AppNode) => void
+  onConnect: (layer: Layer, connection: {
+    source: string
+    target: string
+    sourceHandle?: string | null
+    targetHandle?: string | null
+  }) => void
+  connectNodes: (layer: Layer, source: string, target: string) => void
+  addNodeAt: (layer: Layer, node: AppNode) => void
+  removeNodes: (layer: Layer, ids: string[]) => void
+  removeEdges: (layer: Layer, ids: string[]) => void
+  duplicateNode: (layer: Layer, nodeId: string) => void
+  clearLayer: (layer: Layer) => void
   updateNodeData: (layer: Layer, nodeId: string, data: Partial<AppNode['data']>) => void
+  startEditing: (layer: Layer, nodeId: string) => void
+  cancelEditing: (layer: Layer) => void
+  commitEditing: (layer: Layer) => void
   persist: (layer: Layer) => Promise<void>
   loadAll: () => Promise<void>
 }
 
-const nodesForLayer = (state: GraphState) => state.graphs[state.activeLayer].nodes
-const edgesForLayer = (state: GraphState) => state.graphs[state.activeLayer].edges
+function makeEdge(layer: Layer, source: string, target: string, sourceHandle?: string | null, targetHandle?: string | null): AppEdge {
+  return {
+    id: `e-${layer}-${Date.now()}`,
+    source,
+    target,
+    sourceHandle: sourceHandle ?? undefined,
+    targetHandle: targetHandle ?? undefined,
+    type: 'smoothstep',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    style: { stroke: '#7a8bff' },
+  }
+}
 
 export const useGraphStore = create<GraphState>((set, get) => ({
   graphs: { backend: EMPTY_GRAPH, db: EMPTY_GRAPH, frontend: EMPTY_GRAPH },
   activeLayer: 'backend',
   dirty: { backend: false, db: false, frontend: false },
+  tool: 'select',
+  wireSource: null,
+  editingNodeId: null,
+  editDraft: null,
+  selectedNodeIds: [],
 
-  setActiveLayer: (layer) => set({ activeLayer: layer }),
+  setActiveLayer: (layer) => {
+    get().commitEditing(get().activeLayer)
+    set({ activeLayer: layer, wireSource: null, selectedNodeIds: [] })
+  },
+
+  setTool: (tool) => set({ tool, wireSource: null }),
+
+  setWireSource: (nodeId) => set({ wireSource: nodeId }),
+
+  setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
 
   onNodesChange: (layer, changes) =>
     set((state) => ({
@@ -60,22 +107,102 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       dirty: { ...state.dirty, [layer]: true },
     })),
 
-  onConnect: (layer, edge) =>
+  onConnect: (layer, connection) =>
     set((state) => ({
       graphs: {
         ...state.graphs,
-        [layer]: { ...state.graphs[layer], edges: [...state.graphs[layer].edges, edge] },
+        [layer]: {
+          ...state.graphs[layer],
+          edges: [
+            ...state.graphs[layer].edges,
+            makeEdge(
+              layer,
+              connection.source,
+              connection.target,
+              connection.sourceHandle,
+              connection.targetHandle,
+            ),
+          ],
+        },
       },
       dirty: { ...state.dirty, [layer]: true },
     })),
 
-  addNode: (layer, node) =>
+  connectNodes: (layer, source, target) =>
+    set((state) => ({
+      graphs: {
+        ...state.graphs,
+        [layer]: {
+          ...state.graphs[layer],
+          edges: [...state.graphs[layer].edges, makeEdge(layer, source, target)],
+        },
+      },
+      dirty: { ...state.dirty, [layer]: true },
+    })),
+
+  addNodeAt: (layer, node) =>
     set((state) => ({
       graphs: {
         ...state.graphs,
         [layer]: { ...state.graphs[layer], nodes: [...state.graphs[layer].nodes, node] },
       },
       dirty: { ...state.dirty, [layer]: true },
+    })),
+
+  removeNodes: (layer, ids) => {
+    const idsSet = new Set(ids)
+    set((state) => {
+      const nodes = state.graphs[layer].nodes.filter((n) => !idsSet.has(n.id))
+      const edges = state.graphs[layer].edges.filter(
+        (e) => !idsSet.has(e.source) && !idsSet.has(e.target),
+      )
+      return {
+        graphs: { ...state.graphs, [layer]: { nodes, edges } },
+        dirty: { ...state.dirty, [layer]: true },
+        editingNodeId:
+          state.editingNodeId && idsSet.has(state.editingNodeId)
+            ? null
+            : state.editingNodeId,
+        wireSource:
+          state.wireSource && idsSet.has(state.wireSource) ? null : state.wireSource,
+      }
+    })
+  },
+
+  removeEdges: (layer, ids) => {
+    const idsSet = new Set(ids)
+    set((state) => ({
+      graphs: {
+        ...state.graphs,
+        [layer]: {
+          ...state.graphs[layer],
+          edges: state.graphs[layer].edges.filter((e) => !idsSet.has(e.id)),
+        },
+      },
+      dirty: { ...state.dirty, [layer]: true },
+    }))
+  },
+
+  duplicateNode: (layer, nodeId) => {
+    const state = get()
+    const node = state.graphs[layer].nodes.find((n) => n.id === nodeId)
+    if (!node) return
+    const copy: AppNode = {
+      ...node,
+      id: `n-${Date.now()}`,
+      position: { x: node.position.x + 40, y: node.position.y + 40 },
+      selected: false,
+    }
+    get().addNodeAt(layer, copy)
+  },
+
+  clearLayer: (layer) =>
+    set((state) => ({
+      graphs: { ...state.graphs, [layer]: { nodes: [], edges: [] } },
+      dirty: { ...state.dirty, [layer]: true },
+      editingNodeId: null,
+      wireSource: null,
+      selectedNodeIds: [],
     })),
 
   updateNodeData: (layer, nodeId, data) =>
@@ -91,6 +218,35 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       },
       dirty: { ...state.dirty, [layer]: true },
     })),
+
+  startEditing: (layer, nodeId) => {
+    const node = get().graphs[layer].nodes.find((n) => n.id === nodeId)
+    if (!node) return
+    set({
+      editingNodeId: nodeId,
+      editDraft: {
+        label: (node.data.label as string) ?? '',
+        columns: ((node.data.columns as { name: string; type: string; constraint: string }[]) ?? []).map(
+          (c) => ({ ...c }),
+        ),
+      },
+      selectedNodeIds: [nodeId],
+    })
+  },
+
+  cancelEditing: (layer) => {
+    const { editingNodeId, editDraft } = get()
+    if (!editingNodeId || !editDraft) return
+    get().updateNodeData(layer, editingNodeId, editDraft)
+    set({ editingNodeId: null, editDraft: null })
+  },
+
+  commitEditing: (layer) => {
+    const { editingNodeId } = get()
+    if (!editingNodeId) return
+    set({ editingNodeId: null, editDraft: null })
+    void get().persist(layer)
+  },
 
   persist: async (layer) => {
     await saveGraph(layer, get().graphs[layer])
@@ -112,5 +268,3 @@ export const useLayerNodes = (layer: Layer) =>
 export const useLayerEdges = (layer: Layer) =>
   useGraphStore((state) => state.graphs[layer].edges)
 export const useActiveLayer = () => useGraphStore((state) => state.activeLayer)
-
-export { nodesForLayer, edgesForLayer }
