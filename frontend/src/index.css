@@ -1,0 +1,276 @@
+@import '@xyflow/react/dist/style.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1e1f24;
+  color: #e6e6e6;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: #26272e;
+  border-bottom: 1px solid #3a3b44;
+  flex: 0 0 auto;
+}
+
+.app__header h1 {
+  font-size: 16px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.tab {
+  padding: 6px 14px;
+  border: 1px solid #3a3b44;
+  border-radius: 6px;
+  background: transparent;
+  color: #b8b9c0;
+  cursor: pointer;
+}
+
+.tab--active {
+  background: #3b4a6b;
+  border-color: #5b7bb4;
+  color: #fff;
+}
+
+.tab__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #e8c14b;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+button {
+  padding: 6px 12px;
+  border: 1px solid #3a3b44;
+  border-radius: 6px;
+  background: #33343c;
+  color: #e6e6e6;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #3f4149;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.app__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.canvas-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.side {
+  width: 340px;
+  flex: 0 0 auto;
+  padding: 12px;
+  overflow-y: auto;
+  border-left: 1px solid #3a3b44;
+  background: #232429;
+}
+
+.side h2 {
+  font-size: 14px;
+  margin: 12px 0 8px;
+}
+
+.side textarea {
+  width: 100%;
+  background: #2a2b32;
+  color: #e6e6e6;
+  border: 1px solid #3a3b44;
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.side__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.side__actions button {
+  flex: 1;
+}
+
+.ok {
+  color: #6ecf6e;
+}
+
+.fail {
+  color: #e06c6c;
+}
+
+.error {
+  color: #e06c6c;
+  font-size: 13px;
+}
+
+.issues {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+}
+
+.issue {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: 1px solid #3a3b44;
+  background: #2a2b32;
+}
+
+.issue--error {
+  border-color: #7a3b3b;
+}
+
+.issue--warning {
+  border-color: #7a6a3b;
+}
+
+.issue__sev {
+  font-weight: 700;
+  color: #e8c14b;
+}
+
+.issue--error .issue__sev {
+  color: #e06c6c;
+}
+
+.issue--info .issue__sev {
+  color: #6ea8dc;
+}
+
+.tasks {
+  font-size: 13px;
+  padding-left: 20px;
+}
+
+.tasks li {
+  margin-bottom: 8px;
+}
+
+.tasks p {
+  margin: 4px 0 0;
+  color: #b8b9c0;
+}
+
+.tasks__meta {
+  font-size: 12px;
+}
+
+/* ---- Table node ---- */
+
+.table-node {
+  background: #2c2d35;
+  border: 1px solid #5b7bb4;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 320px;
+  font-size: 12px;
+}
+
+.table-node__label {
+  width: 100%;
+  background: #1e1f24;
+  color: #e6e6e6;
+  border: 1px solid #3a3b44;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.table-node__grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-node__grid th {
+  text-align: left;
+  color: #9a9ba3;
+  font-weight: 500;
+  padding: 2px 4px;
+}
+
+.table-node__grid td {
+  padding: 2px;
+}
+
+.table-node__grid input {
+  width: 100%;
+  background: #232429;
+  color: #e6e6e6;
+  border: 1px solid #3a3b44;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+.table-node__del {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: transparent;
+  border-color: transparent;
+  color: #9a9ba3;
+}
+
+.table-node__del:hover {
+  color: #e06c6c;
+  background: #3a3033;
+}
+
+.table-node__add {
+  width: 100%;
+  margin-top: 6px;
+  font-size: 11px;
+  padding: 4px;
+}
