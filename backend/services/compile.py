@@ -40,10 +40,13 @@ title, description (what to build, referencing graph nodes), depends_on (task
 ids that must be done first), files (paths this task creates/modifies).""",
         TaskList,
     )
-    id_map = {task.id: f"t{index}" for index, task in enumerate(tasks.tasks, start=1)}
-    for index, task in enumerate(tasks.tasks, start=1):
-        task.id = id_map[task.id]
+    new_ids = [f"t{index}" for index in range(1, len(tasks.tasks) + 1)]
+    id_map: dict[str, str] = {}
+    for task, new_id in zip(tasks.tasks, new_ids):
+        id_map.setdefault(task.id, new_id)
+    for task, new_id in zip(tasks.tasks, new_ids):
         task.depends_on = [id_map.get(dep, dep) for dep in task.depends_on]
+        task.id = new_id
         if not task.files:
             task.files = infer_files(task)
     storage.write_scope(project_id, scope)

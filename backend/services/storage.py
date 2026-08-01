@@ -6,7 +6,9 @@ which is how projects are told apart from any other JSON in the directory.
 from __future__ import annotations
 
 import json
+import os
 import secrets
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -32,6 +34,27 @@ LEGACY_GRAPH_FILES: dict[str, str] = {
 
 class ProjectNotFound(Exception):
     pass
+
+
+_locks: dict[str, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def _project_lock(project_id: str) -> threading.Lock:
+    """One lock per project id; FastAPI runs sync routes in a threadpool."""
+    with _locks_guard:
+        lock = _locks.get(project_id)
+        if lock is None:
+            lock = threading.Lock()
+            _locks[project_id] = lock
+        return lock
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Write via a temp file + os.replace so a crash can't truncate the file."""
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
 
 
 def project_path(project_id: str) -> Path:
@@ -112,8 +135,9 @@ def read_project(project_id: str) -> Project | None:
 
 def write_project(project: Project) -> Project:
     PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
-    project_path(project.id).write_text(
-        json.dumps(project.model_dump(mode="json"), indent=2)
+    _atomic_write(
+        project_path(project.id),
+        json.dumps(project.model_dump(mode="json"), indent=2),
     )
     return project
 
@@ -144,28 +168,32 @@ def read_graph(project_id: str, layer: str) -> LayerGraph:
 
 
 def write_graph(project_id: str, layer: str, graph: LayerGraph) -> LayerGraph:
-    project = _require(project_id)
-    project.graphs[layer] = graph
-    project.updated_at = now_utc()
-    write_project(project)
+    with _project_lock(project_id):
+        project = _require(project_id)
+        project.graphs[layer] = graph
+        project.updated_at = now_utc()
+        write_project(project)
     return graph
 
 
 def write_validation(project_id: str, report: ValidationReport) -> None:
-    project = _require(project_id)
-    project.validation = report
-    write_project(project)
+    with _project_lock(project_id):
+        project = _require(project_id)
+        project.validation = report
+        write_project(project)
 
 
 def write_tasks(project_id: str, tasks: TaskList) -> None:
-    project = _require(project_id)
-    project.tasks = tasks
-    write_project(project)
+    with _project_lock(project_id):
+        project = _require(project_id)
+        project.tasks = tasks
+        write_project(project)
 
 
 def write_scope(project_id: str, scope: str) -> None:
-    project = _require(project_id)
-    if project.scope == scope:
-        return
-    project.scope = scope
-    write_project(project)
+    with _project_lock(project_id):
+        project = _require(project_id)
+        if project.scope == scope:
+            return
+        project.scope = scope
+        write_project(project)

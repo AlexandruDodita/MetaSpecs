@@ -1,8 +1,8 @@
-fastapi
-uvicorn[standard]
-pydantic
-pyyaml
-openai
-instructor
-httpx
-mcp
+fastapi==0.141.1
+uvicorn[standard]==0.52.0
+pydantic==2.13.4
+pyyaml==6.0.3
+openai==2.52.0
+instructor==1.15.4
+httpx==0.28.1
+mcp==2.0.0

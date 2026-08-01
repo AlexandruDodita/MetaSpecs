@@ -4,31 +4,47 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 LAYERS = Literal["backend", "db", "frontend"]
 LAYER_NAMES = ["backend", "db", "frontend"]
 SEVERITY = Literal["error", "warning", "info"]
+
+# React Flow UI state that must never be persisted (see GraphNode/GraphEdge).
+TRANSIENT_FLOW_FIELDS = ("selected", "dragging", "resizing")
 
 # Marker + schema version identifying a project file as ours ("metaspecs").
 PROJECT_APP = "metaspecs"
 PROJECT_VERSION = 1
 
 
-class GraphNode(BaseModel):
-    # React Flow v12 node state is stored as-is; extra fields (style, measured,
-    # selected, …) are passthrough so sizes/selection survive a round-trip.
+class FlowElement(BaseModel):
+    """Base for stored React Flow elements.
+
+    Extra fields (style, measured, …) are passthrough so sizes survive a
+    round-trip, but the UI-only flags in TRANSIENT_FLOW_FIELDS are dropped —
+    persisting them makes a reopened project render pre-selected nodes.
+    """
+
     model_config = ConfigDict(extra="allow")
 
+    @model_validator(mode="after")
+    def _drop_transient(self):
+        extra = self.__pydantic_extra__
+        if extra:
+            for key in TRANSIENT_FLOW_FIELDS:
+                extra.pop(key, None)
+        return self
+
+
+class GraphNode(FlowElement):
     id: str
     type: str = "table"
     position: dict[str, float]
     data: dict[str, Any] = Field(default_factory=dict)
 
 
-class GraphEdge(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
+class GraphEdge(FlowElement):
     id: str
     source: str
     target: str
