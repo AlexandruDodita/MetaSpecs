@@ -58,6 +58,41 @@ function nearestSnapNode(
   return best
 }
 
+const WIRE_GAP = 4
+
+/**
+ * Point where a ray from the node's centre toward `toward` crosses the node's outline,
+ * pushed out by WIRE_GAP so the line stops just short of the border.
+ */
+function boundaryPoint(node: AppNode, toward: { x: number; y: number }): { x: number; y: number } {
+  const { width, height } = nodeSizeOf(node)
+  const cx = node.position.x + width / 2
+  const cy = node.position.y + height / 2
+  const dx = toward.x - cx
+  const dy = toward.y - cy
+  if (dx === 0 && dy === 0) return { x: cx, y: cy }
+
+  const isCircle =
+    node.type === 'shape' && (node.data as { kind?: ShapeKind }).kind === 'circle'
+  const rx = width / 2
+  const ry = height / 2
+
+  let t: number
+  if (isCircle) {
+    // Ellipse: scale the direction vector until it lands on the outline.
+    t = 1 / Math.hypot(dx / rx, dy / ry)
+  } else {
+    // Rectangle: the first edge the ray crosses.
+    const tx = dx === 0 ? Infinity : rx / Math.abs(dx)
+    const ty = dy === 0 ? Infinity : ry / Math.abs(dy)
+    t = Math.min(tx, ty)
+  }
+
+  const len = Math.hypot(dx, dy)
+  const gap = len === 0 ? 0 : WIRE_GAP / len
+  return { x: cx + dx * (t + gap), y: cy + dy * (t + gap) }
+}
+
 interface MenuState {
   items: ReturnType<typeof buildPaneMenu>
   x: number
@@ -383,15 +418,21 @@ function CanvasInner({ layer }: { layer: Layer }) {
       const snapId = nearestSnapNode(nodes, wirePointer, wireSource)
       const snapNode = snapId ? (nodes.find((n) => n.id === snapId) ?? null) : null
       const { width: sw, height: sh } = nodeSizeOf(sourceNode)
-      const sx = sourceNode.position.x + sw / 2
-      const sy = sourceNode.position.y + sh / 2
-      let tx = wirePointer.x
-      let ty = wirePointer.y
+      const sourceCentre = {
+        x: sourceNode.position.x + sw / 2,
+        y: sourceNode.position.y + sh / 2,
+      }
+      let sourceEnd = boundaryPoint(sourceNode, wirePointer)
+      let targetEnd: { x: number; y: number } = wirePointer
       let ring: ReactNode = null
       if (snapNode) {
         const { width: tw, height: th } = nodeSizeOf(snapNode)
-        tx = snapNode.position.x + tw / 2
-        ty = snapNode.position.y + th / 2
+        const targetCentre = {
+          x: snapNode.position.x + tw / 2,
+          y: snapNode.position.y + th / 2,
+        }
+        sourceEnd = boundaryPoint(sourceNode, targetCentre)
+        targetEnd = boundaryPoint(snapNode, sourceCentre)
         ring = (
           <rect
             className="wire-preview__ring"
@@ -420,10 +461,10 @@ function CanvasInner({ layer }: { layer: Layer }) {
             {ring}
             <line
               className={`wire-preview__line${snapNode ? ' wire-preview__line--snapped' : ''}`}
-              x1={sx}
-              y1={sy}
-              x2={tx}
-              y2={ty}
+              x1={sourceEnd.x}
+              y1={sourceEnd.y}
+              x2={targetEnd.x}
+              y2={targetEnd.y}
             />
           </svg>
         </ViewportPortal>

@@ -757,6 +757,7 @@ button:disabled {
   stroke-width: 2;
   fill: none;
   stroke-dasharray: 6 4;
+  stroke-linecap: round;
 }
 
 .wire-preview__line--snapped {
