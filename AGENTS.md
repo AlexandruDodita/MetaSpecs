@@ -59,7 +59,10 @@ agent-execution loop (MVP stops at tasks.json).
   (`mcp/server.py`). Versions: MCP integration `0.1`, MetaSpecs project
   `v0.0.1`. It proxies the HTTP API (`METASPECS_API_URL`, default
   `http://localhost:8000`) with tools for project CRUD, graph read/write,
-  node/wire editing, reports, validate and compile.
+  node/wire editing, reports, validate and compile. `NODE_TYPES` there must
+  track `src/types.ts`'s persistable node types (`table|shape|class|service`;
+  `preview` is transient and stays rejected) — it silently lagged two node kinds
+  behind the app once already.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
   `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
 
@@ -98,8 +101,13 @@ Stored graph JSON is serializable React Flow v12 state:
   validation report and task list are saved with the project and restored on
   open (`GET /api/projects/{id}/reports`).
 - All API routes are project-scoped; the old unscoped routes
-  (`/api/graph/{layer}` etc.) are gone (the SPA catch-all in `main.py` only
-  serves `index.html` for non-API GETs).
+  (`/api/graph/{layer}` etc.) are gone. The SPA catch-all in `main.py` serves
+  `index.html` only for non-API GETs — anything under `/api/` that no router
+  matched 404s, so a typo'd endpoint fails on status rather than handing the
+  frontend HTML to `JSON.parse`.
+- CORS is pinned to `DEV_ORIGINS` (the vite dev origins) in `main.py`, not `*`:
+  the API is unauthenticated and can delete projects, so a wildcard let any page
+  the user browsed drive it. The single-process serve is same-origin.
 - Layers are lowercase strings `backend|db|frontend`; unknown layer → 404.
 - `Project` CRUD: `GET|POST /api/projects`, `GET|DELETE /api/projects/{id}`,
   `GET /api/projects/{id}/reports` → `ProjectReports`.
@@ -114,7 +122,10 @@ Stored graph JSON is serializable React Flow v12 state:
 - All LLM calls go through `chat_json(role, system, user, response_model)` in
   `backend/services/llm.py` (instructor, strict JSON). Tests stub it by
   monkeypatching `chat_json` on the service module (`backend.services.validate`
-  / `backend.services.compile`).
+  / `backend.services.compile`). A missing role or an unresolved `${ENV_VAR}`
+  api_key raises `LLMConfigError`, which the validate/compile routes turn into a
+  500 whose `detail` names the problem; the role cache reloads when
+  `models.yaml`'s mtime changes.
 
 ## Gotchas
 
@@ -126,6 +137,12 @@ Stored graph JSON is serializable React Flow v12 state:
 - Project file schema lives in `models.Project`; graphs are the
   `graphs` sub-object. Writing a graph bumps `updated_at`; validate/compile
   also persist `scope` into the project file (restored via `/reports`).
+- Every write helper in `storage.py` is a read-modify-write of the WHOLE project
+  file, so each one must hold `_project_lock(project_id)` across both the read
+  and the write — without it, concurrent saves to different layers clobber each
+  other (two tabs, or the browser plus the MCP server). Writes go through
+  `_atomic_write` (temp file + `os.replace`) so a crash can't truncate a
+  project. Add a lock to any new read-modify-write helper.
 - `GraphNode.data` is Pydantic `dict[str, Any]`; the table shape lives in
   `src/types.ts` (`TableNodeData`) and the generic shape in `ShapeNodeData`
   (`kind: rect|circle`, `label`, `items[]`). Keep both in sync when changing.
@@ -139,13 +156,24 @@ Stored graph JSON is serializable React Flow v12 state:
 - Node sizes persist via `NodeResizer onResizeEnd` → `updateNodeSize`
   (writes `node.style.width/height`); RF's own resize only sets
   `measured`/`width` which Pydantic would otherwise drop — the backend
-  `extra="allow"` passthrough is what makes both survive a round-trip.
+  `extra="allow"` passthrough (on the shared `FlowElement` base) is what makes
+  both survive a round-trip. That passthrough is opt-OUT for UI state:
+  `TRANSIENT_FLOW_FIELDS` (`selected`, `dragging`, `resizing`) is stripped
+  during validation on both `GraphNode` and `GraphEdge`. Persisting `selected`
+  meant a reopened project rendered nodes pre-selected and armed the toolbar
+  Delete on a node nobody had picked. Add any new RF UI flag to that tuple.
+- Node default sizes live in `DEFAULT_SIZE` (`src/nodeFactory.ts`) and are
+  mirrored in `mcp/server.py` so MCP-created nodes match hand-placed ones —
+  keep the two in sync. `placeableKindOf(node)` is the ONE place that maps a
+  stored node back to its `PlaceableKind`; `geometry.nodeSizeOf` and
+  `store.duplicateNode` both go through it.
 - Resize handles are always rendered (`isVisible` default) and revealed via
   CSS (`.react-flow__resize-control { opacity: 0 }` + `:hover`/`.selected`
   on `.react-flow__node`); sizes are in flow units — at zoom≠1 a screen-space
   drag maps through the current viewport.
-- Auto-fit runs only for a loaded, untouched graph (`!dirty`), never after a
-  user edit, so drag-to-draw coordinates stay deterministic.
+- Auto-fit runs once per `layer:loadSeq` (a ref guard in `GraphCanvas`), i.e.
+  only for a freshly loaded graph and never after a user edit, so drag-to-draw
+  coordinates stay deterministic. `loadAll` bumps `loadSeq`.
 - All graph mutation flows through Zustand actions in `src/store.ts` using
   `applyNodeChanges`/`applyEdgeChanges`; cast changes/nodes/edges to React Flow
   `NodeChange[]`/`Node[]` at that boundary (`as unknown as ...` where TS
@@ -165,9 +193,13 @@ Stored graph JSON is serializable React Flow v12 state:
   service is hidden from the canvas while every connected service is
   collapsed (it lives in the service's object area instead); edges touching
   hidden nodes are filtered too. The store keeps the nodes; the wire tool's
-  snap targets the filtered set. `expanded` is shared by services
-  (`=== true` = expanded) and classes (`!== false` = expanded, so classes
-  default to expanded).
+  snap targets the filtered set.
+- The `expanded` map is shared by services and classes but their DEFAULTS
+  differ (`EXPANDED_BY_DEFAULT` in `store.ts`: classes expanded, services
+  collapsed). Read it only through `isExpanded(expanded, nodeId, kind)` and
+  toggle only through `toggleExpanded(nodeId, kind)` — never `expanded[id]`
+  inline. Open-coding the read is what made a class's first chevron click a
+  no-op: the toggle wrote `!undefined === true`, which the class already was.
 - `ClassNode`/`ServiceNode` read their data from React Flow's `data` prop
   plus the store for membership/expansion; top-level edit forms use the store
   draft machinery (`editingNodeId`/`editDraft`).

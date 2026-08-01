@@ -30,6 +30,16 @@ MCP_VERSION = "0.1"
 PROJECT_VERSION = "0.0.1"
 API_URL = os.environ.get("METASPECS_API_URL", "http://localhost:8000")
 LAYERS = ("backend", "db", "frontend")
+# Persistable node types; 'preview' is the transient drag ghost and never stored.
+NODE_TYPES = ("table", "shape", "class", "service")
+
+# Mirrors DEFAULT_SIZE in frontend/src/nodeFactory.ts — keep the two in sync.
+DEFAULT_SIZE: dict[str, dict[str, float]] = {
+    "table": {"width": 260, "height": 150},
+    "shape": {"width": 180, "height": 110},
+    "class": {"width": 260, "height": 180},
+    "service": {"width": 320, "height": 240},
+}
 
 server = MCPServer("metaspecs", version=MCP_VERSION)
 _client = httpx.Client(base_url=API_URL, timeout=120.0)
@@ -92,6 +102,7 @@ async def server_info() -> dict:
         "project_version": PROJECT_VERSION,
         "backend_url": API_URL,
         "layers": list(LAYERS),
+        "node_types": list(NODE_TYPES),
         "tools": sorted(t.name for t in await server.list_tools()),
     }
 
@@ -148,8 +159,10 @@ def get_graph(project_id: str, layer: str) -> dict:
 
 @server.tool(
     description=(
-        "Replace an entire layer graph. nodes: [{id, type: table|shape, "
-        "position:{x,y}, data}], edges: [{id, source, target, label}]."
+        "Replace an entire layer graph. nodes: [{id, type: table|shape|"
+        "class|service, position:{x,y}, data}], edges: [{id, source, "
+        "target, label}]. A service's membership travels in edges: any "
+        "class wired to a service node belongs to it."
     )
 )
 def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]) -> dict:
@@ -159,11 +172,22 @@ def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]
 
 @server.tool(
     description=(
-        "Add a node to a layer graph. type 'table' takes data "
-        "{label, columns: [{name, type, constraint}]} (constraint is "
-        "free text like 'PRIMARY KEY'); type 'shape' takes data "
-        "{kind: 'rect'|'circle', label, items: [string]}. Returns the new "
-        "node id and the resulting graph counts."
+        "Add a node to a layer graph. type is one of table, shape, class, "
+        "service. Node data per type: 'table' takes {label, columns: "
+        "[{name, type, constraint}]} (constraint is free text like "
+        "'PRIMARY KEY', never an enum); 'shape' takes {kind: "
+        "'rect'|'circle', label, items: [string]}; 'class' takes {label, "
+        "fields: [{name, visibility, type}], methods: [{id, name, "
+        "visibility, returnType, params, steps: [{id, kind, label}]}]} "
+        "where visibility is 'public'|'private'|'protected' and a step's "
+        "kind is 'step'|'branch'|'call' (all id fields must be unique "
+        "strings within the node); 'service' takes {label} only — a "
+        "service's member classes are NOT stored in its data, membership "
+        "comes from edges, so to put a class in a service use add_edge "
+        "with the service and class node ids in either direction. Layer "
+        "guidance (matching the UI): class is backend+frontend only, "
+        "service is backend only, table and shape work on any layer. "
+        "Returns the new node id and the resulting graph counts."
     )
 )
 def add_node(
@@ -177,14 +201,17 @@ def add_node(
     width: float | None = None,
     height: float | None = None,
 ) -> dict:
-    if type not in ("table", "shape"):
-        raise ToolError("type must be 'table' or 'shape'")
+    if type not in NODE_TYPES:
+        raise ToolError(f"type must be one of: {', '.join(NODE_TYPES)}")
     node_id = id or _new_id("n")
-    style = {}
-    if width is not None:
-        style["width"] = width
-    if height is not None:
-        style["height"] = height
+    # A circle is 120x120 in the UI, unlike the rect-sized 'shape' default.
+    default = DEFAULT_SIZE[type]
+    if type == "shape" and (data or {}).get("kind") == "circle":
+        default = {"width": 120, "height": 120}
+    style = {
+        "width": width if width is not None else default["width"],
+        "height": height if height is not None else default["height"],
+    }
 
     def fn(graph: dict, state: dict) -> None:
         if any(n["id"] == node_id for n in graph["nodes"]):
@@ -194,9 +221,8 @@ def add_node(
             "type": type,
             "position": {"x": x, "y": y},
             "data": data or {},
+            "style": style,
         }
-        if style:
-            node["style"] = style
         graph["nodes"].append(node)
         state["id"] = node_id
         state["node"] = node

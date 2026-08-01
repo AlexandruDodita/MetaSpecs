@@ -103,10 +103,11 @@ const unique = new Set(ids)
 check('batch duplicate yields unique node ids', unique.size === ids.length, `${ids.length} nodes, ${unique.size} unique`)
 
 // ---- Bug 3: Escape exits edit mode from inside a form field ----
-// Reset to a clean layer first: the batch-duplicate step above leaves
-// duplicate nodes stacked ~40px on top of their originals (duplicateNode
-// offsets by {x:+40,y:+40}), and being later in DOM order they paint on
-// top and intercept pointer events meant for the original node underneath.
+// Reset to a clean layer first: the batch-duplicate step above leaves three
+// extra tables on the layer, offset to the right of their originals
+// (duplicateNode shifts x by width + 24). Being later in DOM order they paint
+// over whatever they overlap and intercept pointer events meant for it, so the
+// clicks below would not reliably land on the node this check is about.
 await page.locator('.toolbar__btn--danger').last().click()
 await page.waitForTimeout(200)
 await addTableAt(600, 400)
