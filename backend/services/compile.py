@@ -1,16 +1,15 @@
 """Compile pass: turn the graphs into a scoped task list for coding agents."""
 from __future__ import annotations
 
-from backend.models import Task, TaskList
+from backend.models import LAYER_NAMES, Task, TaskList
 from backend.services import storage
 from backend.services.llm import chat_json
 
 
-def _graph_payload() -> dict:
+def _graph_payload(project_id: str) -> dict:
     return {
-        "backend": storage.read_graph("backend").model_dump(),
-        "db": storage.read_graph("db").model_dump(),
-        "frontend": storage.read_graph("frontend").model_dump(),
+        layer: storage.read_graph(project_id, layer).model_dump()
+        for layer in LAYER_NAMES
     }
 
 
@@ -23,8 +22,8 @@ SYSTEM_PROMPT = (
 )
 
 
-def compile_tasks(scope: str) -> TaskList:
-    payload = _graph_payload()
+def compile_tasks(project_id: str, scope: str) -> TaskList:
+    payload = _graph_payload(project_id)
     tasks = chat_json(
         "orchestrator",
         SYSTEM_PROMPT,
@@ -47,7 +46,8 @@ ids that must be done first), files (paths this task creates/modifies).""",
         task.depends_on = [id_map.get(dep, dep) for dep in task.depends_on]
         if not task.files:
             task.files = infer_files(task)
-    storage.write_tasks(tasks)
+    storage.write_scope(project_id, scope)
+    storage.write_tasks(project_id, tasks)
     return tasks
 
 

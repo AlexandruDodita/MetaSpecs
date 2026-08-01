@@ -1,16 +1,15 @@
 """LLM validation pass: check the three graphs against the stated scope."""
 from __future__ import annotations
 
-from backend.models import Issue, ValidationReport
+from backend.models import LAYER_NAMES, Issue, ValidationReport
 from backend.services import storage
 from backend.services.llm import chat_json
 
 
-def _graph_payload() -> dict:
+def _graph_payload(project_id: str) -> dict:
     return {
-        "backend": storage.read_graph("backend").model_dump(),
-        "db": storage.read_graph("db").model_dump(),
-        "frontend": storage.read_graph("frontend").model_dump(),
+        layer: storage.read_graph(project_id, layer).model_dump()
+        for layer in LAYER_NAMES
     }
 
 
@@ -21,8 +20,8 @@ SYSTEM_PROMPT = (
 )
 
 
-def validate(scope: str) -> ValidationReport:
-    payload = _graph_payload()
+def validate(project_id: str, scope: str) -> ValidationReport:
+    payload = _graph_payload(project_id)
     report = chat_json(
         "orchestrator",
         SYSTEM_PROMPT,
@@ -42,5 +41,6 @@ Return a report with issues: each issue has node_id (optional), severity
 (error|warning|info), and message. Set passed=false if any error exists.""",
         ValidationReport,
     )
-    storage.write_validation(report)
+    storage.write_scope(project_id, scope)
+    storage.write_validation(project_id, report)
     return report

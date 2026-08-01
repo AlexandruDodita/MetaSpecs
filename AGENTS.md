@@ -3,7 +3,10 @@
 Visual Spec Builder: localhost visual editor for architecture specs. Users draw
 three node-graph layouts (backend / db / frontend) on a canvas; an LLM pass
 validates the graphs against a stated scope; a compile pass turns the graphs
-into a scoped task list written to `data/tasks.json`.
+into a scoped task list. Work is organized into **projects**: on first launch
+the app shows a project picker (create/open/delete), each project lives in its
+own file under `data/projects/`, and the last opened project id is remembered
+in localStorage (`metaspecs.activeProjectId`).
 
 Architecture decisions are final — do not re-litigate: React + Vite + TS with
 @xyflow/react + Zustand; FastAPI backend; flat JSON files for storage (no DB);
@@ -13,27 +16,33 @@ agent-execution loop (MVP stops at tasks.json).
 ## Layout
 
 - `backend/` — FastAPI. Entrypoint `backend/main.py` (`app`). Routes in
-  `backend/routes/{graph,validate,compile}.py`, each with its own `APIRouter`,
-  mounted with prefix `/api`. Pydantic models in `backend/models.py`. Services
-  in `backend/services/`: `storage.py` (JSON file IO), `llm.py` (OpenAI +
-  instructor client), `validate.py`, `compile.py`.
+  `backend/routes/{projects,graph,validate,compile}.py`, each with its own
+  `APIRouter`, mounted with prefix `/api`. Pydantic models in `backend/models.py`
+  (incl. `Project`, `ProjectInfo`, `ProjectReports`). Services in
+  `backend/services/`: `storage.py` (JSON file IO, one file per project),
+  `llm.py` (OpenAI + instructor client), `validate.py`, `compile.py`.
 - `frontend/` — Vite app (run everything with `npm --prefix frontend ...`).
-  `src/types.ts` shared types; `src/store.ts` all Zustand graph state (graphs,
-  active layer, tools `select|rect|circle|table|wire`, live drag-to-draw rect,
-  edit mode, selection); `src/nodeFactory.ts` node builders (default sizes,
-  per-kind data); `src/api.ts` fetch helpers; `src/components/GraphCanvas.tsx`
-  one `<ReactFlow>` per layer (drag-to-draw preview, context menus, wire tool,
-  dark mode); `src/components/TableNode.tsx` table node (Oracle-style schema
-  rows, one left/right handle pair per column) and `src/components/ShapeNode.tsx`
-  generic shapes — rect (header + item list) and circle — both with edit mode
-  (dropdowns/textarea, save/cancel/outside-click); `src/components/PreviewNode.tsx`
-  dashed drag preview; `src/components/ContextMenu.tsx` + `src/menu/` (OOP menu
-  model: `MenuAction`/`MenuSubmenu`/`MenuSeparator`, builders per context in
+  `src/types.ts` shared types; `src/store.ts` all Zustand graph state (active
+  `project`, graphs, active layer, tools `select|rect|circle|table|wire`, live
+  drag-to-draw rect, edit mode, selection); `src/nodeFactory.ts` node builders
+  (default sizes, per-kind data); `src/api.ts` fetch helpers (all endpoints are
+  project-scoped); `src/components/GraphCanvas.tsx` one `<ReactFlow>` per layer
+  (drag-to-draw preview, context menus, wire tool, dark mode);
+  `src/components/ProjectPicker.tsx` create/open/delete project screen (shown
+  when `store.project` is null); `src/components/TableNode.tsx` table node
+  (Oracle-style schema rows, one left/right handle pair per column) and
+  `src/components/ShapeNode.tsx` generic shapes — rect (header + item list) and
+  circle — both with edit mode (dropdowns/textarea, save/cancel/outside-click);
+  `src/components/PreviewNode.tsx` dashed drag preview;
+  `src/components/ContextMenu.tsx` + `src/menu/` (OOP menu model:
+  `MenuAction`/`MenuSubmenu`/`MenuSeparator`, builders per context in
   `builders.ts`); `src/components/Toolbar.tsx` left mini sidebar reusing the
   same store actions; `src/schema-options.ts` column type/constraint dropdown
   options.
-- `data/` — runtime JSON, gitignored: `backend.graph.json`, `db.schema.json`,
-  `frontend.graph.json`, `validation-report.json`, `tasks.json`.
+- `data/` — runtime JSON, gitignored. One file per project:
+  `data/projects/<project-id>.json`. Legacy pre-project files
+  (`backend.graph.json` etc.) are imported once into an "Untitled" project by
+  `storage._ensure_migrated()` on first `list_projects()` call.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
   `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
 
@@ -60,19 +69,27 @@ Stored graph JSON is serializable React Flow v12 state:
  "edges": [{"id": "e-1", "source": "n-1", "target": "n-2", "label": ""}]}
 ```
 
-- Layers are lowercase strings `backend|db|frontend`; file map lives in
-  `backend/models.py` `LAYER_FILE`: backend→`data/backend.graph.json`,
-  db→`data/db.schema.json`, frontend→`data/frontend.graph.json`. Missing files
-  read as empty graphs; unknown layer → 404.
-- `GraphNode`/`GraphEdge` use `ConfigDict(extra="allow")` — full React Flow
-  node/edge state (style, measured, markers, label style…) round-trips as-is.
-- `GET|POST /api/graph/{layer}` → `LayerGraph` (POST echoes the saved graph).
-- `POST /api/validate` body `{"scope": str}` → `ValidationReport`
+- Project files live at `data/projects/<id>.json`; the `app: "metaspecs"`
+  marker (plus `version`) is what identifies a file as one of our projects —
+  `list_projects()` ignores anything else in that directory.
+- Project file shape: `{app, version, id, name, created_at, updated_at, scope,
+  graphs: {backend, db, frontend}, validation, tasks}`. `scope` + the last
+  validation report and task list are saved with the project and restored on
+  open (`GET /api/projects/{id}/reports`).
+- All API routes are project-scoped; the old unscoped routes
+  (`/api/graph/{layer}` etc.) are gone (the SPA catch-all in `main.py` only
+  serves `index.html` for non-API GETs).
+- Layers are lowercase strings `backend|db|frontend`; unknown layer → 404.
+- `Project` CRUD: `GET|POST /api/projects`, `GET|DELETE /api/projects/{id}`,
+  `GET /api/projects/{id}/reports` → `ProjectReports`.
+- `GET|POST /api/projects/{id}/graph/{layer}` → `LayerGraph` (POST echoes the
+  saved graph); unknown project → 404.
+- `POST /api/projects/{id}/validate` body `{"scope": str}` → `ValidationReport`
   (`scope`, `passed`, `issues[{node_id, severity: error|warning|info, message}]`);
-  writes `data/validation-report.json`.
-- `POST /api/compile` body `{"scope": str}` → `TaskList`
+  stored on the project.
+- `POST /api/projects/{id}/compile` body `{"scope": str}` → `TaskList`
   (`tasks[{id, title, description, depends_on[], files[]}], generated_at`);
-  writes `data/tasks.json`.
+  stored on the project.
 - All LLM calls go through `chat_json(role, system, user, response_model)` in
   `backend/services/llm.py` (instructor, strict JSON). Tests stub it by
   monkeypatching `chat_json` on the service module (`backend.services.validate`
@@ -80,6 +97,14 @@ Stored graph JSON is serializable React Flow v12 state:
 
 ## Gotchas
 
+- The app boots into `ProjectPicker` when `store.project` is null; on startup
+  App resumes the id in `metaspecs.activeProjectId` (cleared on 404). All
+  graph/validate/compile calls are project-scoped — `store.persist` and
+  `store.loadAll` silently no-op without an active project, so the canvas is
+  never rendered until one is open.
+- Project file schema lives in `models.Project`; graphs are the
+  `graphs` sub-object. Writing a graph bumps `updated_at`; validate/compile
+  also persist `scope` into the project file (restored via `/reports`).
 - `GraphNode.data` is Pydantic `dict[str, Any]`; the table shape lives in
   `src/types.ts` (`TableNodeData`) and the generic shape in `ShapeNodeData`
   (`kind: rect|circle`, `label`, `items[]`). Keep both in sync when changing.

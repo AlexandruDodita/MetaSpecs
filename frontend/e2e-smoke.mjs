@@ -12,21 +12,39 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
 
-// Pre-clear every layer via the API before the app ever mounts. If a prior
-// run's leftover nodes are still on disk, the very first render triggers an
-// auto-fitView zoom (see GraphCanvas's fittedKeyRef effect) before this
-// script gets a chance to clear anything through the UI — that skews the
-// viewport transform and makes every later pixel-coordinate drag/selection
-// in this script non-deterministic across repeated runs. Clearing server
-// state first keeps every layer's initial viewport at the identity
-// transform, matching what a truly fresh backend would give us.
+// Create a dedicated smoke-test project and clear every layer via the API
+// before the app ever mounts. If a prior run's leftover nodes are still on
+// disk, the very first render triggers an auto-fitView zoom (see
+// GraphCanvas's fittedKeyRef effect) before this script gets a chance to
+// clear anything through the UI — that skews the viewport transform and
+// makes every later pixel-coordinate drag/selection in this script
+// non-deterministic across repeated runs. Clearing server state first keeps
+// every layer's initial viewport at the identity transform, matching what a
+// truly fresh backend would give us.
+const createResp = await page.request.post('http://localhost:8000/api/projects', {
+  data: { name: 'Smoke Test' },
+})
+const projectId = (await createResp.json()).id
+const createdProjectIds = [projectId]
+const graphUrl = (layer) => `http://localhost:8000/api/projects/${projectId}/graph/${layer}`
 for (const layer of ['backend', 'db', 'frontend']) {
-  await page.request.post(`http://localhost:8000/api/graph/${layer}`, {
-    data: { nodes: [], edges: [] },
-  })
+  await page.request.post(graphUrl(layer), { data: { nodes: [], edges: [] } })
 }
 
+// First launch has no remembered project, so the app boots into the picker.
 await page.goto(URL, { waitUntil: 'networkidle' })
+await page.waitForSelector('.project-picker')
+check('first open shows the project picker', (await page.locator('.project-picker').count()) === 1)
+const pickerRowName = await page
+  .locator('.project-picker__row .project-picker__open strong')
+  .first()
+  .innerText()
+  .catch(() => '')
+check('picker lists the created project', pickerRowName === 'Smoke Test', `name="${pickerRowName}"`)
+await page
+  .locator('.project-picker__row .project-picker__open', { hasText: 'Smoke Test' })
+  .first()
+  .click()
 await page.waitForSelector('.react-flow__pane')
 
 const pane = page.locator('.react-flow__pane')
@@ -131,7 +149,7 @@ await addTableAt(500, 400)
 await page.waitForTimeout(1500)
 const saveStatusText = await page.locator('.save-status').innerText().catch(() => '')
 check('autosave: header shows "Saved"', saveStatusText === 'Saved', `text="${saveStatusText}"`)
-const dbResp = await page.request.get('http://localhost:8000/api/graph/db')
+const dbResp = await page.request.get(graphUrl('db'))
 const dbJson = await dbResp.json()
 check('autosave: server has 1 node for db layer', dbJson.nodes?.length === 1, `nodes=${dbJson.nodes?.length}`)
 
@@ -151,7 +169,7 @@ await page.mouse.down()
 await page.mouse.move(startX + 37, startY + 23, { steps: 8 })
 await page.mouse.up()
 await page.waitForTimeout(1500)
-const dbResp2 = await page.request.get('http://localhost:8000/api/graph/db')
+const dbResp2 = await page.request.get(graphUrl('db'))
 const dbJson2 = await dbResp2.json()
 const draggedPos = dbJson2.nodes?.[0]?.position
 check(
@@ -378,7 +396,7 @@ check('clear graph: a single Ctrl+Z restores both nodes', afterClearUndoCount ==
 // later pixel-coordinate right-click in this script (same hazard the
 // top-of-file pre-clear comment describes).
 for (const layer of ['backend', 'db', 'frontend']) {
-  await page.request.post(`http://localhost:8000/api/graph/${layer}`, { data: { nodes: [], edges: [] } })
+  await page.request.post(graphUrl(layer), { data: { nodes: [], edges: [] } })
 }
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('.react-flow__pane')
@@ -432,7 +450,7 @@ await page.waitForTimeout(1500)
 // (leaving db's freshly-autosaved single node alone) so the reload's
 // default-active "backend" layer has nothing to fit-zoom to.
 for (const layer of ['backend', 'frontend']) {
-  await page.request.post(`http://localhost:8000/api/graph/${layer}`, { data: { nodes: [], edges: [] } })
+  await page.request.post(graphUrl(layer), { data: { nodes: [], edges: [] } })
 }
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('.react-flow__pane')
@@ -459,7 +477,7 @@ check('clicking a node does not dirty it: status still reads "Saved"', statusAft
 // below land in the wrong place. Clearing all layers and reloading restores the
 // identity transform, same technique used before check 7.
 for (const layer of ['backend', 'db', 'frontend']) {
-  await page.request.post(`http://localhost:8000/api/graph/${layer}`, { data: { nodes: [], edges: [] } })
+  await page.request.post(graphUrl(layer), { data: { nodes: [], edges: [] } })
 }
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('.react-flow__pane')
@@ -627,7 +645,7 @@ await page.mouse.down()
 await page.mouse.move(540, 430, { steps: 4 }) // ~40x30 drag, well under the 260x120 table minimum
 await page.mouse.up()
 await page.waitForTimeout(1600)
-const minSizeResp = await page.request.get('http://localhost:8000/api/graph/db')
+const minSizeResp = await page.request.get(graphUrl('db'))
 const minSizeJson = await minSizeResp.json()
 const clampedStyle = minSizeJson.nodes?.[0]?.style
 check(
@@ -705,6 +723,43 @@ await page.mouse.click(nearNode2.x, nearNode2.y)
 await page.waitForTimeout(200)
 const edgesAfterNearClick = await page.locator('.react-flow__edge').count()
 check('clicking within snap range of a node connects, creating exactly 1 edge', edgesAfterNearClick === 1, `edges=${edgesAfterNearClick}`)
+
+// ==== Project picker: switching and creating projects ====
+
+await page.locator('.header__project-switch').click()
+await page.waitForSelector('.project-picker')
+check('header "Projects" button returns to the picker', (await page.locator('.project-picker').count()) === 1)
+const pickerStillListsSmoke = await page
+  .locator('.project-picker__row .project-picker__open strong', { hasText: 'Smoke Test' })
+  .count()
+check(
+  'picker still lists the smoke-test project',
+  pickerStillListsSmoke >= 1,
+  `rows=${pickerStillListsSmoke}`,
+)
+
+await page.locator('.project-picker__name').fill('Fresh Project')
+await page.locator('.project-picker__create button[type="submit"]').click()
+await page.waitForSelector('.react-flow__pane')
+const headerProjectName = await page.locator('.header__project-name').innerText()
+check(
+  'creating a project from the picker opens it with its name in the header',
+  headerProjectName === 'Fresh Project',
+  `name="${headerProjectName}"`,
+)
+const freshProjects = (await (await page.request.get('http://localhost:8000/api/projects')).json())
+  .projects
+const freshProject = freshProjects.find((p) => p.name === 'Fresh Project')
+if (freshProject) createdProjectIds.push(freshProject.id)
+const freshNodeCount = await page.locator('.react-flow__node').count()
+check('new project opens with an empty graph', freshNodeCount === 0, `nodes=${freshNodeCount}`)
+const freshDirtyDots = await page.locator('.tab__dot').count()
+check('new project loads without dirty flags', freshDirtyDots === 0, `dots=${freshDirtyDots}`)
+
+// Delete only the projects this run created, leaving any pre-existing data alone.
+for (const id of createdProjectIds) {
+  await page.request.delete(`http://localhost:8000/api/projects/${id}`)
+}
 
 await browser.close()
 const failed = results.filter((r) => !r.pass)

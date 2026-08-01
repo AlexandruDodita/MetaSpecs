@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
-import type { Layer, TaskList, ValidationReport } from './types'
+import { useCallback, useEffect, useState } from 'react'
+import type { Layer, ProjectInfo, TaskList, ValidationReport } from './types'
 import { useGraphStore } from './store'
 import { GraphCanvas } from './components/GraphCanvas'
+import { ProjectPicker } from './components/ProjectPicker'
 import { Toolbar } from './components/Toolbar'
 import { useAutosave } from './useAutosave'
-import { runCompile, runValidate } from './api'
+import { getProject, getProjectReports, runCompile, runValidate } from './api'
+
+const PROJECT_KEY = 'metaspecs.activeProjectId'
 
 const LAYERS: { key: Layer; label: string }[] = [
   { key: 'backend', label: 'Backend' },
@@ -19,24 +22,76 @@ const SEVERITY_LABEL: Record<string, string> = {
 }
 
 function App() {
+  const project = useGraphStore((s) => s.project)
+  const setProject = useGraphStore((s) => s.setProject)
   const activeLayer = useGraphStore((s) => s.activeLayer)
   const setActiveLayer = useGraphStore((s) => s.setActiveLayer)
   const dirty = useGraphStore((s) => s.dirty)
   const saveState = useGraphStore((s) => s.saveState)
   const saveError = useGraphStore((s) => s.saveError)
-  const loadAll = useGraphStore((s) => s.loadAll)
 
   useAutosave()
 
+  const [booting, setBooting] = useState(true)
   const [scope, setScope] = useState('')
   const [report, setReport] = useState<ValidationReport | null>(null)
   const [tasks, setTasks] = useState<TaskList | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const resumeProject = useCallback(async (projectId: string) => {
+    try {
+      const info = await getProject(projectId)
+      setProject(info)
+      await useGraphStore.getState().loadAll()
+      const reports = await getProjectReports(projectId)
+      setScope(reports.scope)
+      setReport(reports.validation)
+      setTasks(reports.tasks)
+    } catch {
+      localStorage.removeItem(PROJECT_KEY)
+    }
+  }, [setProject])
+
   useEffect(() => {
-    loadAll().catch((e: Error) => setError(e.message))
-  }, [loadAll])
+    const storedId = localStorage.getItem(PROJECT_KEY)
+    if (!storedId) {
+      setBooting(false)
+      return
+    }
+    resumeProject(storedId).finally(() => setBooting(false))
+  }, [resumeProject])
+
+  const openProject = async (info: ProjectInfo) => {
+    setError(null)
+    setReport(null)
+    setTasks(null)
+    localStorage.setItem(PROJECT_KEY, info.id)
+    setProject(info)
+    try {
+      await useGraphStore.getState().loadAll()
+      const reports = await getProjectReports(info.id)
+      setScope(reports.scope)
+      setReport(reports.validation)
+      setTasks(reports.tasks)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const closeProject = async () => {
+    setError(null)
+    try {
+      await useGraphStore.getState().persistDirty()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+    localStorage.removeItem(PROJECT_KEY)
+    setProject(null)
+    setReport(null)
+    setTasks(null)
+    setScope('')
+  }
 
   const retrySave = async () => {
     setError(null)
@@ -48,11 +103,12 @@ function App() {
   }
 
   const validate = async () => {
+    if (!project) return
     setBusy('validate')
     setError(null)
     try {
       await useGraphStore.getState().persistDirty()
-      setReport(await runValidate(scope))
+      setReport(await runValidate(project.id, scope))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -61,11 +117,12 @@ function App() {
   }
 
   const compile = async () => {
+    if (!project) return
     setBusy('compile')
     setError(null)
     try {
       await useGraphStore.getState().persistDirty()
-      setTasks(await runCompile(scope))
+      setTasks(await runCompile(project.id, scope))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -73,10 +130,24 @@ function App() {
     }
   }
 
+  if (booting) return <div className="app app--boot" />
+
+  if (!project) {
+    return <ProjectPicker onOpen={openProject} />
+  }
+
   return (
     <div className="app">
       <header className="app__header">
         <h1>Visual Spec Builder</h1>
+        <div className="header__project">
+          <span className="header__project-name" title={project.id}>
+            {project.name}
+          </span>
+          <button className="header__project-switch" onClick={closeProject}>
+            Projects
+          </button>
+        </div>
         <div className="tabs">
           {LAYERS.map(({ key, label }) => (
             <button

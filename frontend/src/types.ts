@@ -77,3 +77,17 @@ export interface TaskList {
   tasks: Task[]
   generated_at: string
 }
+
+export interface ProjectInfo {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+  node_count: number
+}
+
+export interface ProjectReports {
+  scope: string
+  validation: ValidationReport | null
+  tasks: TaskList | null
+}

@@ -1,7 +1,7 @@
 import type { Edge, Node, NodeChange, EdgeChange, NodePositionChange } from '@xyflow/react'
 import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
-import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ShapeKind } from './types'
+import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ProjectInfo, ShapeKind } from './types'
 import { loadGraph, saveGraph } from './api'
 import { DEFAULT_SIZE, uid, makeNodeId, type PlaceableKind } from './nodeFactory'
 import { closestSides } from './geometry'
@@ -45,6 +45,7 @@ function removeFromGraph(graph: LayerGraph, nodeIds: Set<string>, edgeIds: Set<s
 const marksDirty = (c: NodeChange | EdgeChange) => c.type !== 'select' && c.type !== 'dimensions'
 
 interface GraphState {
+  project: ProjectInfo | null
   graphs: Record<Layer, LayerGraph>
   past: Record<Layer, LayerGraph[]>
   future: Record<Layer, LayerGraph[]>
@@ -63,6 +64,7 @@ interface GraphState {
   selectedEdgeIds: string[]
   undo: (layer: Layer) => void
   redo: (layer: Layer) => void
+  setProject: (project: ProjectInfo | null) => void
   setActiveLayer: (layer: Layer) => void
   setTool: (tool: Tool) => void
   setWireSource: (nodeId: string | null) => void
@@ -128,6 +130,7 @@ function migrateEdgeHandles(graph: LayerGraph): LayerGraph {
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
+  project: null,
   graphs: { backend: EMPTY_GRAPH, db: EMPTY_GRAPH, frontend: EMPTY_GRAPH },
   past: { backend: [], db: [], frontend: [] },
   future: { backend: [], db: [], frontend: [] },
@@ -149,6 +152,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     get().commitEditing(get().activeLayer)
     set({ activeLayer: layer, wireSource: null, selectedNodeIds: [], selectedEdgeIds: [] })
   },
+
+  setProject: (project) =>
+    set({
+      project,
+      editingNodeId: null,
+      editDraft: null,
+      wireSource: null,
+      drawing: null,
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      tool: 'select',
+    }),
 
   setTool: (tool) => set({ tool, wireSource: null, drawing: null }),
 
@@ -507,8 +522,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   persist: async (layer) => {
+    const projectId = get().project?.id
+    if (!projectId) return
     const snapshot = get().graphs[layer]
-    await saveGraph(layer, snapshot)
+    await saveGraph(projectId, layer, snapshot)
     set((state) =>
       state.graphs[layer] === snapshot
         ? { dirty: { ...state.dirty, [layer]: false } }
@@ -532,8 +549,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   loadAll: async () => {
+    const projectId = get().project?.id
+    if (!projectId) return
     const layers: Layer[] = ['backend', 'db', 'frontend']
-    const loaded = await Promise.all(layers.map((layer) => loadGraph(layer)))
+    const loaded = await Promise.all(layers.map((layer) => loadGraph(projectId, layer)))
     const graphs = Object.fromEntries(
       layers.map((layer, i) => [layer, migrateEdgeHandles(loaded[i])]),
     ) as Record<Layer, LayerGraph>

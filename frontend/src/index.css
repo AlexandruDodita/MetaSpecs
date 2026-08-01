@@ -828,3 +828,139 @@ button:disabled {
 .react-flow__node.selected .shape-node {
   box-shadow: 0 0 0 1.5px #7a8bff, 0 6px 24px rgba(0, 0, 0, 0.55);
 }
+
+/* ---- Project picker ---- */
+
+.app--boot {
+  align-items: center;
+  justify-content: center;
+  color: #8a8b93;
+}
+
+.project-picker {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.project-picker__inner {
+  width: 480px;
+  max-width: 100%;
+  background: #1d1e24;
+  border: 1px solid #34363f;
+  border-radius: 12px;
+  padding: 32px;
+}
+
+.project-picker__inner h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.project-picker__subtitle {
+  margin: 4px 0 24px;
+  color: #8a8b93;
+  font-size: 13px;
+}
+
+.project-picker__create {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.project-picker__name {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #34363f;
+  border-radius: 6px;
+  background: #16171b;
+  color: #e6e6e6;
+  font-size: 14px;
+}
+
+.project-picker__name:focus {
+  outline: none;
+  border-color: #4a67a8;
+}
+
+.project-picker__list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.project-picker__row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.project-picker__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  background: #26272e;
+}
+
+.project-picker__open:hover:not(:disabled) {
+  background: #2c3a5e;
+}
+
+.project-picker__meta {
+  font-size: 12px;
+  color: #8a8b93;
+}
+
+.project-picker__delete {
+  width: 40px;
+  flex: 0 0 auto;
+  color: #e06c6c;
+}
+
+.project-picker__empty {
+  color: #8a8b93;
+  font-size: 13px;
+}
+
+/* ---- Header project block ---- */
+
+.header__project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid #34363f;
+  border-radius: 6px;
+  background: #16171b;
+  margin-left: 8px;
+}
+
+.header__project-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #dfe6ff;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header__project-switch {
+  padding: 3px 8px;
+  font-size: 12px;
+  background: #26272e;
+}

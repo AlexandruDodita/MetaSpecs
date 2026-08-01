@@ -6,17 +6,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-LAYER_FILE: dict[str, str] = {
-    "backend": "data/backend.graph.json",
-    "db": "data/db.schema.json",
-    "frontend": "data/frontend.graph.json",
-}
-
-VALIDATION_FILE = "data/validation-report.json"
-TASKS_FILE = "data/tasks.json"
-
 LAYERS = Literal["backend", "db", "frontend"]
+LAYER_NAMES = ["backend", "db", "frontend"]
 SEVERITY = Literal["error", "warning", "info"]
+
+# Marker + schema version identifying a project file as ours ("metaspecs").
+PROJECT_APP = "metaspecs"
+PROJECT_VERSION = 1
 
 
 class GraphNode(BaseModel):
@@ -77,3 +73,67 @@ class TaskList(BaseModel):
 
 class CompileRequest(BaseModel):
     scope: str
+
+
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class CreateProjectRequest(BaseModel):
+    name: str = "Untitled"
+
+
+class ProjectInfo(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+    updated_at: datetime
+    node_count: int = 0
+
+
+class ProjectList(BaseModel):
+    projects: list[ProjectInfo] = Field(default_factory=list)
+
+
+class ProjectReports(BaseModel):
+    scope: str = ""
+    validation: ValidationReport | None = None
+    tasks: TaskList | None = None
+
+
+class Project(BaseModel):
+    """One file per project: `data/projects/<id>.json`.
+
+    `app`/`version` are the format marker: only files carrying them are
+    recognized as MetaSpecs projects when listing.
+    """
+
+    app: Literal["metaspecs"] = PROJECT_APP
+    version: int = PROJECT_VERSION
+    id: str
+    name: str
+    created_at: datetime = Field(default_factory=now_utc)
+    updated_at: datetime = Field(default_factory=now_utc)
+    scope: str = ""
+    graphs: dict[str, LayerGraph] = Field(
+        default_factory=lambda: {layer: LayerGraph() for layer in LAYER_NAMES}
+    )
+    validation: ValidationReport | None = None
+    tasks: TaskList | None = None
+
+    def info(self) -> ProjectInfo:
+        node_count = sum(len(g.nodes) for g in self.graphs.values())
+        return ProjectInfo(
+            id=self.id,
+            name=self.name,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            node_count=node_count,
+        )
+
+    def reports(self) -> ProjectReports:
+        return ProjectReports(
+            scope=self.scope,
+            validation=self.validation,
+            tasks=self.tasks,
+        )
