@@ -6,6 +6,7 @@ import type { AppNode, ClassNodeData, Method, ServiceNodeData } from '../types'
 import { useGraphStore, isExpanded } from '../store'
 import { Highlighted, VisibilityBadge } from './Highlighted'
 import NodeSideHandles from './NodeSideHandles'
+import { NodeMeta } from './NodeMeta'
 
 /** Classes wired to the service (membership = any edge in either direction). */
 function useMemberClasses(nodeId: string): AppNode[] {
@@ -20,12 +21,18 @@ function useMemberClasses(nodeId: string): AppNode[] {
 
 function ServiceEditForm({
   label,
+  path,
+  description,
   onLabel,
+  onChange,
   onSave,
   onCancel,
 }: {
   label: string
+  path: string
+  description: string
   onLabel: (label: string) => void
+  onChange: (patch: { path?: string; description?: string }) => void
   onSave: () => void
   onCancel: () => void
 }) {
@@ -43,6 +50,7 @@ function ServiceEditForm({
         placeholder="service name"
         autoFocus
       />
+      <NodeMeta block="service" path={path} description={description} onChange={onChange} />
       <div className="service-edit__actions">
         <button onClick={onSave}>Save</button>
         <button onClick={onCancel}>Cancel</button>
@@ -130,6 +138,7 @@ function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
   const members = useMemberClasses(id)
 
   const label = data.label ?? 'service'
+  const path = data.path ?? ''
 
   const toggle = (e: { stopPropagation: () => void }) => {
     e.stopPropagation()
@@ -148,6 +157,7 @@ function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
           {expanded ? '▾' : '▸'}
         </button>
       </div>
+      {path && <div className="node-meta__path">{path}</div>}
       {expanded ? (
         <div className="service-node__tree">
           {members.length === 0 && (
@@ -212,7 +222,10 @@ function ServiceNode({ id, data }: NodeProps<Node<ServiceNodeData, 'service'>>) 
       {isEditing ? (
         <ServiceEditForm
           label={editDraft?.label ?? nodeData.label}
+          path={editDraft?.path ?? ''}
+          description={editDraft?.description ?? ''}
           onLabel={(label) => useGraphStore.getState().updateEditDraft({ label })}
+          onChange={(patch) => useGraphStore.getState().updateEditDraft(patch)}
           onSave={() => commitEditing(activeLayer)}
           onCancel={() => useGraphStore.getState().cancelEditing()}
         />

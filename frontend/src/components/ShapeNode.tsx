@@ -2,6 +2,7 @@ import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useGraphStore } from '../store'
 import NodeSideHandles from './NodeSideHandles'
+import { NodeMeta } from './NodeMeta'
 
 function ShapeEditForm({ onDone }: { onDone: () => void }) {
   const draft = useGraphStore((s) => s.editDraft)
@@ -10,6 +11,8 @@ function ShapeEditForm({ onDone }: { onDone: () => void }) {
 
   const label = draft?.label ?? ''
   const items = draft?.items ?? []
+  const path = draft?.path ?? ''
+  const description = draft?.description ?? ''
 
   return (
     <div
@@ -32,6 +35,7 @@ function ShapeEditForm({ onDone }: { onDone: () => void }) {
         placeholder={'one item per line\ne.g. GET /users\nPOST /users'}
         rows={Math.max(3, items.length + 1)}
       />
+      <NodeMeta block="shape" path={path} description={description} onChange={updateEditDraft} />
       <div className="shape-edit__actions">
         <button onClick={onDone}>Save</button>
         <button onClick={() => cancelEditing()}>Cancel</button>
@@ -44,11 +48,13 @@ function ShapeView({ id, kind }: { id: string; kind: 'rect' | 'circle' }) {
   const data = useGraphStore((s) => s.graphs[s.activeLayer].nodes.find((n) => n.id === id)?.data)
   const label = (data?.label as string | undefined) ?? kind
   const items = (data?.items as string[] | undefined) ?? []
+  const path = (data?.path as string | undefined) ?? ''
 
   if (kind === 'circle') {
     return (
       <div className="shape-node__inner shape-node__inner--circle">
         <div className="shape-node__clabel">{label}</div>
+        {path && <div className="node-meta__path">{path}</div>}
         {items.length > 0 && (
           <ul className="shape-node__items shape-node__items--circle">
             {items.map((item, i) => (
@@ -63,6 +69,7 @@ function ShapeView({ id, kind }: { id: string; kind: 'rect' | 'circle' }) {
   return (
     <div className="shape-node__inner">
       <div className="shape-node__header">{label}</div>
+      {path && <div className="node-meta__path">{path}</div>}
       {items.length > 0 && (
         <ul className="shape-node__items">
           {items.map((item, i) => (

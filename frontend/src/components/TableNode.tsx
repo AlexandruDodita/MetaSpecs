@@ -6,6 +6,7 @@ import type { Column } from '../types'
 import { useGraphStore } from '../store'
 import { COLUMN_TYPES, CONSTRAINTS } from '../schema-options'
 import NodeSideHandles from './NodeSideHandles'
+import { NodeMeta } from './NodeMeta'
 
 const SIDE_HANDLE_IDS: ReadonlySet<string> = new Set(['top', 'right', 'bottom', 'left'])
 
@@ -72,6 +73,8 @@ function EditForm({ onDone }: { onDone: () => void }) {
 
   const columns = draft?.columns ?? []
   const label = draft?.label ?? ''
+  const path = draft?.path ?? ''
+  const description = draft?.description ?? ''
 
   const setLabel = (value: string) => updateEditDraft({ label: value })
 
@@ -139,6 +142,7 @@ function EditForm({ onDone }: { onDone: () => void }) {
       <button className="table-edit__add" onClick={addColumn}>
         + column
       </button>
+      <NodeMeta block="table" path={path} description={description} onChange={updateEditDraft} />
       <div className="table-edit__actions">
         <button onClick={onDone}>Save</button>
         <button onClick={() => cancelEditing()}>Cancel</button>
@@ -153,6 +157,7 @@ function SchemaView({ id }: { id: string }) {
   const updateNodeInternals = useUpdateNodeInternals()
   const columns = (data?.columns as Column[] | undefined) ?? []
   const label = (data?.label as string | undefined) ?? 'table'
+  const path = (data?.path as string | undefined) ?? ''
   const columnKey = columns.map((c) => c.name).join('|')
   const handleIds = columnHandleIds(columns)
 
@@ -167,6 +172,7 @@ function SchemaView({ id }: { id: string }) {
           <span className="schema__name">{label}</span>
           <span className="schema__badge">TABLE</span>
         </div>
+        {path && <div className="node-meta__path">{path}</div>}
         <table className="schema__grid">
           <thead>
             <tr>

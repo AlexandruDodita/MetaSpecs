@@ -10,6 +10,17 @@ export type Visibility = 'public' | 'private' | 'protected'
 
 export type LogicKind = 'step' | 'branch' | 'call'
 
+export type EdgeKind = 'contains' | 'calls' | 'implements' | 'reads' | 'writes' | 'depends-on'
+
+export const EDGE_KINDS: readonly EdgeKind[] = [
+  'contains',
+  'calls',
+  'implements',
+  'reads',
+  'writes',
+  'depends-on',
+]
+
 export interface Column {
   name: string
   type: string
@@ -19,6 +30,8 @@ export interface Column {
 export interface TableNodeData {
   label: string
   columns: Column[]
+  path?: string
+  description?: string
   [key: string]: unknown
 }
 
@@ -26,6 +39,8 @@ export interface ShapeNodeData {
   kind: ShapeKind
   label: string
   items: string[]
+  path?: string
+  description?: string
   [key: string]: unknown
 }
 
@@ -55,11 +70,15 @@ export interface ClassNodeData {
   label: string
   fields: Field[]
   methods: Method[]
+  path?: string
+  description?: string
   [key: string]: unknown
 }
 
 export interface ServiceNodeData {
   label: string
+  path?: string
+  description?: string
   [key: string]: unknown
 }
 
@@ -77,7 +96,7 @@ export type GraphNodeData =
   | Record<string, never>
 
 export type AppNode = Node<GraphNodeData, NodeType>
-export type AppEdge = Edge
+export type AppEdge = Edge & { kind?: EdgeKind; protocol?: string }
 
 export interface LayerGraph {
   nodes: AppNode[]
@@ -91,6 +110,8 @@ export interface EditDraft {
   items: string[]
   fields: Field[]
   methods: Method[]
+  path: string
+  description: string
 }
 
 export type Severity = 'error' | 'warning' | 'info'

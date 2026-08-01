@@ -803,6 +803,36 @@ button:disabled {
   background: rgba(122, 139, 255, 0.55);
 }
 
+/* ---- Node meta: read-only path line + edit notes ---- */
+
+.node-meta__path {
+  font-size: 10px;
+  color: #8a8b93;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 3px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #1a1c21;
+  border-bottom: 1px solid #34363f;
+}
+
+.table-edit__notes,
+.shape-edit__notes,
+.class-edit__notes,
+.service-edit__notes {
+  background: #16171b;
+  color: #e6e6e6;
+  border: 1px solid #34363f;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 48px;
+  line-height: 1.4;
+}
+
 /* React Flow dark-mode internals: keep controls visible on dark canvas */
 .react-flow__controls button {
   background: #26272e;
@@ -1390,13 +1420,17 @@ button:disabled {
   letter-spacing: 0.08em;
 }
 
-.service-edit__name {
+.service-edit__name,
+.service-edit__input {
   background: #16171b;
   color: #e6e6e6;
   border: 1px solid #34363f;
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
+}
+
+.service-edit__name {
   font-weight: 600;
 }
 

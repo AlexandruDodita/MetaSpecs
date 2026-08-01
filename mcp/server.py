@@ -32,6 +32,8 @@ API_URL = os.environ.get("METASPECS_API_URL", "http://localhost:8000")
 LAYERS = ("backend", "db", "frontend")
 # Persistable node types; 'preview' is the transient drag ghost and never stored.
 NODE_TYPES = ("table", "shape", "class", "service")
+# Mirrors EDGE_KIND_NAMES in backend/models.py; the repo root isn't importable from here.
+EDGE_KINDS = ("contains", "calls", "implements", "reads", "writes", "depends-on")
 
 # Mirrors DEFAULT_SIZE in frontend/src/nodeFactory.ts — keep the two in sync.
 DEFAULT_SIZE: dict[str, dict[str, float]] = {
@@ -103,6 +105,7 @@ async def server_info() -> dict:
         "backend_url": API_URL,
         "layers": list(LAYERS),
         "node_types": list(NODE_TYPES),
+        "edge_kinds": list(EDGE_KINDS),
         "tools": sorted(t.name for t in await server.list_tools()),
     }
 
@@ -183,7 +186,8 @@ def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]
         "service: {label} only — members are NOT in its data, wire a class to "
         "it with add_edge (either direction). "
         "Layers, as in the UI: class is backend+frontend, service is backend, "
-        "table and shape are any. Returns the new node id and graph counts."
+        "table and shape are any. path/description are optional node metadata "
+        "merged into data. Returns the new node id and graph counts."
     )
 )
 def add_node(
@@ -196,6 +200,8 @@ def add_node(
     data: dict | None = None,
     width: float | None = None,
     height: float | None = None,
+    path: str = "",
+    description: str = "",
 ) -> dict:
     if type not in NODE_TYPES:
         raise ToolError(f"type must be one of: {', '.join(NODE_TYPES)}")
@@ -208,6 +214,11 @@ def add_node(
         "width": width if width is not None else default["width"],
         "height": height if height is not None else default["height"],
     }
+    node_data = dict(data or {})
+    if path and "path" not in node_data:
+        node_data["path"] = path
+    if description and "description" not in node_data:
+        node_data["description"] = description
 
     def fn(graph: dict, state: dict) -> None:
         if any(n["id"] == node_id for n in graph["nodes"]):
@@ -216,7 +227,7 @@ def add_node(
             "id": node_id,
             "type": type,
             "position": {"x": x, "y": y},
-            "data": data or {},
+            "data": node_data,
             "style": style,
         }
         graph["nodes"].append(node)
@@ -274,8 +285,10 @@ def remove_node(project_id: str, layer: str, id: str) -> dict:
 @server.tool(
     description=(
         "Wire two nodes on a layer: add an edge from source node id to "
-        "target node id, with an optional label. Both nodes must already "
-        "exist. Returns the new edge id and the resulting graph counts."
+        "target node id, with an optional label, kind and protocol. kind is "
+        "one of contains|calls|implements|reads|writes|depends-on (default "
+        "depends-on). Both nodes must already exist. Returns the new edge id "
+        "and the resulting graph counts."
     )
 )
 def add_edge(
@@ -285,7 +298,11 @@ def add_edge(
     target: str,
     id: str | None = None,
     label: str = "",
+    kind: str = "depends-on",
+    protocol: str = "",
 ) -> dict:
+    if kind not in EDGE_KINDS:
+        raise ToolError(f"kind must be one of: {', '.join(EDGE_KINDS)}")
     edge_id = id or _new_id("e")
 
     def fn(graph: dict, state: dict) -> None:
@@ -296,7 +313,14 @@ def add_edge(
             raise ToolError(f"No node {target} on layer {layer}")
         if any(e["id"] == edge_id for e in graph["edges"]):
             raise ToolError(f"Edge {edge_id} already exists on layer {layer}")
-        edge = {"id": edge_id, "source": source, "target": target, "label": label}
+        edge = {
+            "id": edge_id,
+            "source": source,
+            "target": target,
+            "label": label,
+            "kind": kind,
+            "protocol": protocol,
+        }
         graph["edges"].append(edge)
         state["id"] = edge_id
         state["edge"] = edge
@@ -313,6 +337,28 @@ def set_edge_label(project_id: str, layer: str, id: str, label: str) -> dict:
         if edge is None:
             raise ToolError(f"No edge {id} on layer {layer}")
         edge["label"] = label
+        state["edge"] = edge
+
+    return _mutate(project_id, layer, fn)
+
+
+@server.tool(
+    description=(
+        "Set the kind of an existing edge, one of contains|calls|implements|"
+        "reads|writes|depends-on, with an optional protocol string."
+    )
+)
+def set_edge_kind(project_id: str, layer: str, id: str, kind: str, protocol: str | None = None) -> dict:
+    if kind not in EDGE_KINDS:
+        raise ToolError(f"kind must be one of: {', '.join(EDGE_KINDS)}")
+
+    def fn(graph: dict, state: dict) -> None:
+        edge = next((e for e in graph["edges"] if e["id"] == id), None)
+        if edge is None:
+            raise ToolError(f"No edge {id} on layer {layer}")
+        edge["kind"] = kind
+        if protocol is not None:  # omitting it must not wipe the existing value
+            edge["protocol"] = protocol
         state["edge"] = edge
 
     return _mutate(project_id, layer, fn)

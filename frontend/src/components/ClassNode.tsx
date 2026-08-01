@@ -7,6 +7,7 @@ import { useGraphStore, isExpanded } from '../store'
 import { makeLogicStep, uid } from '../nodeFactory'
 import { Highlighted, VisibilityBadge } from './Highlighted'
 import NodeSideHandles from './NodeSideHandles'
+import { NodeMeta } from './NodeMeta'
 
 const VISIBILITIES: readonly ['public', 'private', 'protected'] = [
   'public',
@@ -22,6 +23,8 @@ export interface ClassEditState {
   label: string
   fields: Field[]
   methods: Method[]
+  path: string
+  description: string
 }
 
 function ClassEditForm({
@@ -157,6 +160,7 @@ function ClassEditForm({
       <button className="class-edit__add" onClick={addMethod}>
         + method
       </button>
+      <NodeMeta block="class" path={draft.path} description={draft.description} onChange={onChange} />
       <div className="class-edit__actions">
         <button onClick={onSave}>Save</button>
         <button onClick={onCancel}>Cancel</button>
@@ -314,6 +318,7 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
   const label = data.label ?? 'class'
   const fields = data.fields ?? []
   const methods = data.methods ?? []
+  const path = data.path ?? ''
 
   return (
     <>
@@ -331,6 +336,7 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
           {classExpanded ? '▾' : '▸'}
         </button>
       </div>
+      {path && <div className="node-meta__path">{path}</div>}
       <div className="class-node__body">
         <div className="class-node__section">
           <div className="class-node__section-title">FIELDS</div>
@@ -392,6 +398,8 @@ function ClassNode({ id, data }: NodeProps<Node<ClassNodeData, 'class'>>) {
     label: editDraft?.label ?? nodeData.label,
     fields: editDraft?.fields ?? nodeData.fields,
     methods: editDraft?.methods ?? nodeData.methods,
+    path: editDraft?.path ?? '',
+    description: editDraft?.description ?? '',
   }
 
   return (

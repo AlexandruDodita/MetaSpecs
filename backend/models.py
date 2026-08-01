@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 LAYERS = Literal["backend", "db", "frontend"]
 LAYER_NAMES = ["backend", "db", "frontend"]
 SEVERITY = Literal["error", "warning", "info"]
+EDGE_KIND = Literal["contains", "calls", "implements", "reads", "writes", "depends-on"]
+EDGE_KIND_NAMES = ["contains", "calls", "implements", "reads", "writes", "depends-on"]
 
 # React Flow UI state that must never be persisted.
 TRANSIENT_FLOW_FIELDS = ("selected", "dragging", "resizing")
@@ -44,6 +46,8 @@ class GraphEdge(FlowElement):
     source: str
     target: str
     label: str = ""
+    kind: EDGE_KIND = "depends-on"
+    protocol: str = ""
 
 
 class LayerGraph(BaseModel):

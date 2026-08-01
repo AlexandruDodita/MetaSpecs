@@ -2,7 +2,7 @@ import { useGraphStore, isExpanded } from '../store'
 import { MenuAction, MenuSeparator, MenuSubmenu } from './types'
 import type { MenuContext, MenuItem } from './types'
 import { makeNode } from '../nodeFactory'
-import type { ClassNodeData } from '../types'
+import { EDGE_KINDS, type ClassNodeData } from '../types'
 
 export function buildPaneMenu(ctx: MenuContext): MenuItem[] {
   const store = useGraphStore.getState()
@@ -122,6 +122,8 @@ export function buildEdgeMenu(ctx: MenuContext, edgeId: string): MenuItem[] {
   const store = useGraphStore.getState()
   const layer = ctx.layer
   const edge = store.graphs[layer].edges.find((e) => e.id === edgeId)
+  const kind = edge?.kind ?? 'depends-on'
+  const protocol = edge?.protocol ?? ''
   return [
     new MenuAction(
       'Label edge…',
@@ -132,6 +134,22 @@ export function buildEdgeMenu(ctx: MenuContext, edgeId: string): MenuItem[] {
         }
       },
       '🏷',
+    ),
+    new MenuAction(
+      'Set protocol…',
+      () => {
+        const value = window.prompt('Edge protocol (e.g. HTTP, stdio, in-process, fs)', protocol)
+        if (value !== null) {
+          store.updateEdgeKind(layer, edgeId, kind, value)
+        }
+      },
+    ),
+    new MenuSubmenu(
+      'Edge kind',
+      EDGE_KINDS.map(
+        (edgeKind) =>
+          new MenuAction(edgeKind, () => store.updateEdgeKind(layer, edgeId, edgeKind, protocol)),
+      ),
     ),
     new MenuAction('Delete connection', () => store.removeEdges(ctx.layer, [edgeId]), '🗑', true),
   ]

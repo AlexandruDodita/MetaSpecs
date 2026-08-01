@@ -48,19 +48,21 @@ export function makeTableData(label = 'table'): TableNodeData {
   return {
     label,
     columns: [{ name: 'id', type: 'uuid', constraint: 'PRIMARY KEY' }],
+    path: '',
+    description: '',
   }
 }
 
 export function makeShapeData(kind: ShapeKind, label = kind): ShapeNodeData {
-  return { kind, label, items: [] }
+  return { kind, label, items: [], path: '', description: '' }
 }
 
 export function makeClassData(label = 'class'): ClassNodeData {
-  return { label, fields: [], methods: [] }
+  return { label, fields: [], methods: [], path: '', description: '' }
 }
 
 export function makeServiceData(label = 'service'): ServiceNodeData {
-  return { label }
+  return { label, path: '', description: '' }
 }
 
 /** One row in a method's logic tree (start/end are implicit). */

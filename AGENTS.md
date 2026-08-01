@@ -60,7 +60,14 @@ agent-execution loop (MVP stops at tasks.json).
   `v0.0.1`. It proxies the HTTP API (`METASPECS_API_URL`, default
   `http://localhost:8000`) with tools for project CRUD, graph read/write,
   node/wire editing, reports, validate and compile. Its `NODE_TYPES` must track
-  the persistable types in `src/types.ts` (`preview` stays rejected).
+  the persistable types in `src/types.ts` (`preview` stays rejected), and its
+  `EDGE_KINDS` must mirror `EDGE_KIND_NAMES` in `backend/models.py` (the repo
+  root is not importable from `mcp/`). `set_edge_kind` leaves `protocol` alone
+  when the argument is omitted — passing `""` is how you clear it.
+- `tools/` — snapshot/drift CLIs, stdlib only, not part of the served app.
+  `import_repo.py` scans the repo and emits a MetaSpecs graph (`--out`,
+  `--push <project-id>`); `diff_graphs.py` compares two graphs and exits 1 on
+  drift. See "Snapshot and drift" below.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
   `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
 
@@ -87,9 +94,41 @@ Stored graph JSON is serializable React Flow v12 state:
 
 ```json
 {"nodes": [{"id": "n-1", "type": "table", "position": {"x": 0, "y": 0},
-  "data": {"label": "users", "columns": [{"name": "id", "type": "uuid", "constraint": "PRIMARY KEY"}]}}],
- "edges": [{"id": "e-1", "source": "n-1", "target": "n-2", "label": ""}]}
+  "data": {"label": "users", "path": "backend/models.py", "description": "",
+           "columns": [{"name": "id", "type": "uuid", "constraint": "PRIMARY KEY"}]}}],
+ "edges": [{"id": "e-1", "source": "n-1", "target": "n-2", "label": "",
+            "kind": "depends-on", "protocol": ""}]}
 ```
+
+- `data.path` (repo-relative) and `data.description` (markdown) are optional on
+  every node kind. They ride `GraphNode.data`'s passthrough — there is no
+  Pydantic field for them. `path` is the join key for drift detection, so treat
+  it as load-bearing, not decoration.
+- Edge `kind` is one of `contains|calls|implements|reads|writes|depends-on`,
+  declared on `GraphEdge` and defaulting to `depends-on`; `protocol` is free
+  text. Edges stored before this existed read back as `depends-on` — there is no
+  migration. **Service membership does NOT consult `kind`**: any class wired to
+  a service still belongs to it, in either direction.
+- Edge stroke colour is derived from `kind` in `GraphCanvas.tsx` (`EDGE_STROKE`).
+
+## Snapshot and drift
+
+A graph is a point-in-time **copy** of a codebase, never a live view. The loop:
+import → hand-edit the graph → hand it to a coding agent → re-import → diff.
+
+- `tools/import_repo.py` must stay **byte-deterministic**: same tree in, same
+  JSON out. No timestamps, no uuids, sorted everything. Node ids are derived
+  from the path (`py:backend/services/storage.py`, `pkg:backend/services`)
+  precisely so a re-import matches the previous one.
+- Edges cannot cross layers (`Project.graphs` is `dict[layer, LayerGraph]`, and
+  edges live inside one layer). The importer therefore drops cross-layer imports
+  into a top-level `skipped_cross_layer` list rather than emitting them.
+- Static import analysis cannot see the frontend→backend relationship at all: it
+  is an HTTP call, not an import. That edge has to be authored by hand.
+- `tools/diff_graphs.py` matches nodes by id first, then by non-empty
+  `data.path` — a node added by hand in the UI has a random id and would never
+  id-match its imported counterpart. Those show under "reconciled by path".
+  `position`/`style`/`measured` are ignored unless `--include-layout`.
 
 - Project files live at `data/projects/<id>.json`; the `app: "metaspecs"`
   marker (plus `version`) is what identifies a file as one of our projects —

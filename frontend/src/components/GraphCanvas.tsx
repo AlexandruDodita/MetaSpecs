@@ -21,7 +21,7 @@ import type {
 } from '@xyflow/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import '@xyflow/react/dist/style.css'
-import type { AppNode, Layer } from '../types'
+import type { AppNode, EdgeKind, Layer } from '../types'
 import { useGraphStore, useLayerNodes, useLayerEdges, isExpanded } from '../store'
 import type { PlaceableTool } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
@@ -40,6 +40,15 @@ const nodeTypes = {
   class: ClassNode,
   service: ServiceNode,
   preview: PreviewNode,
+}
+
+const EDGE_STROKE: Record<EdgeKind, string> = {
+  contains: '#8b8f9a',
+  calls: '#7a8bff',
+  implements: '#4fd18b',
+  reads: '#e0b155',
+  writes: '#e07a7a',
+  'depends-on': '#7a8bff',
 }
 
 const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set([
@@ -153,9 +162,12 @@ function CanvasInner({ layer }: { layer: Layer }) {
       }
     }
     const renderNodes = nodes.filter((n) => !hidden.has(n.id))
-    const renderEdges = edges.filter(
-      (e) => !hidden.has(e.source) && !hidden.has(e.target),
-    )
+    const renderEdges = edges
+      .filter((e) => !hidden.has(e.source) && !hidden.has(e.target))
+      .map((e) => ({
+        ...e,
+        style: { ...e.style, stroke: EDGE_STROKE[e.kind ?? 'depends-on'] },
+      }))
     return { renderNodes, renderEdges }
   }, [nodes, edges, expanded])
 

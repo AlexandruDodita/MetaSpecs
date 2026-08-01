@@ -5,6 +5,7 @@ import type {
   AppEdge,
   AppNode,
   ClassNodeData,
+  EdgeKind,
   EditDraft,
   Field,
   Layer,
@@ -119,6 +120,7 @@ interface GraphState {
   clearLayer: (layer: Layer) => void
   updateNodeData: (layer: Layer, nodeId: string, data: Partial<AppNode['data']>) => void
   updateEdgeLabel: (layer: Layer, edgeId: string, label: string) => void
+  updateEdgeKind: (layer: Layer, edgeId: string, kind: EdgeKind, protocol: string) => void
   updateNodeSize: (layer: Layer, nodeId: string, width: number, height: number) => void
   startDrawing: (kind: Drawing['kind'], x: number, y: number) => void
   updateDrawing: (x: number, y: number) => void
@@ -146,7 +148,26 @@ function makeEdge(layer: Layer, source: string, target: string, sourceHandle?: s
     labelBgPadding: [4, 4] as [number, number],
     labelBgBorderRadius: 4,
     labelBgStyle: { fill: '#1f2127', fillOpacity: 0.9 },
+    kind: 'depends-on',
+    protocol: '',
   }
+}
+
+/** Shared immutable edge patch: update fields, mark dirty, push undo history. */
+function patchEdge(layer: Layer, edgeId: string, patch: Partial<AppEdge>) {
+  return (state: GraphState) => ({
+    graphs: {
+      ...state.graphs,
+      [layer]: {
+        ...state.graphs[layer],
+        edges: state.graphs[layer].edges.map((e) =>
+          e.id === edgeId ? { ...e, ...patch } : e,
+        ),
+      },
+    },
+    dirty: { ...state.dirty, [layer]: true },
+    ...pushHistory(state, layer),
+  })
 }
 
 /** Rewrite pre-side-handle edge ids ('out'/'in') to the new four-side names. */
@@ -486,19 +507,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   updateEdgeLabel: (layer, edgeId, label) =>
-    set((state) => ({
-      graphs: {
-        ...state.graphs,
-        [layer]: {
-          ...state.graphs[layer],
-          edges: state.graphs[layer].edges.map((e) =>
-            e.id === edgeId ? { ...e, label: label || undefined } : e,
-          ),
-        },
-      },
-      dirty: { ...state.dirty, [layer]: true },
-      ...pushHistory(state, layer),
-    })),
+    set(patchEdge(layer, edgeId, { label: label || undefined })),
+
+  updateEdgeKind: (layer, edgeId, kind, protocol) =>
+    set(patchEdge(layer, edgeId, { kind, protocol })),
 
   updateNodeSize: (layer, nodeId, width, height) =>
     set((state) => ({
@@ -545,6 +557,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       items: string[]
       fields: Field[]
       methods: Method[]
+      path: string
+      description: string
     }>
     const draft: EditDraft = {
       label: data.label ?? '',
@@ -555,6 +569,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         ...m,
         steps: (m.steps ?? []).map((s) => ({ ...s })),
       })),
+      path: data.path ?? '',
+      description: data.description ?? '',
     }
     set({
       editingNodeId: nodeId,
@@ -585,21 +601,29 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       get().updateNodeData(layer, editingNodeId, {
         label: editDraft.label,
         columns: editDraft.columns,
+        path: editDraft.path,
+        description: editDraft.description,
       })
     } else if (node.type === 'shape') {
       get().updateNodeData(layer, editingNodeId, {
         label: editDraft.label,
         items: editDraft.items,
+        path: editDraft.path,
+        description: editDraft.description,
       })
     } else if (node.type === 'class') {
       get().updateNodeData(layer, editingNodeId, {
         label: editDraft.label,
         fields: editDraft.fields,
         methods: editDraft.methods,
+        path: editDraft.path,
+        description: editDraft.description,
       })
     } else if (node.type === 'service') {
       get().updateNodeData(layer, editingNodeId, {
         label: editDraft.label,
+        path: editDraft.path,
+        description: editDraft.description,
       })
     }
     set({ editingNodeId: null, editDraft: null })
