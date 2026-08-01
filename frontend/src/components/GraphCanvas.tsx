@@ -59,11 +59,15 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const connectNodes = useGraphStore((s) => s.connectNodes)
   const addNodeAt = useGraphStore((s) => s.addNodeAt)
   const setSelectedNodeIds = useGraphStore((s) => s.setSelectedNodeIds)
+  const setSelectedEdgeIds = useGraphStore((s) => s.setSelectedEdgeIds)
+  const deleteSelection = useGraphStore((s) => s.deleteSelection)
   const setTool = useGraphStore((s) => s.setTool)
   const commitEditing = useGraphStore((s) => s.commitEditing)
   const cancelEditing = useGraphStore((s) => s.cancelEditing)
   const startDrawing = useGraphStore((s) => s.startDrawing)
   const updateDrawing = useGraphStore((s) => s.updateDrawing)
+  const undo = useGraphStore((s) => s.undo)
+  const redo = useGraphStore((s) => s.redo)
   const { screenToFlowPosition, fitView } = useReactFlow()
   const storeApi = useStoreApi()
   const loadSeq = useGraphStore((s) => s.loadSeq)
@@ -229,10 +233,11 @@ function CanvasInner({ layer }: { layer: Layer }) {
   )
 
   const handleSelectionChange = useCallback(
-    ({ nodes }: { nodes: { id: string }[] }) => {
+    ({ nodes, edges }: { nodes: { id: string }[]; edges: { id: string }[] }) => {
       setSelectedNodeIds(nodes.map((n) => n.id))
+      setSelectedEdgeIds(edges.map((e) => e.id))
     },
-    [setSelectedNodeIds],
+    [setSelectedNodeIds, setSelectedEdgeIds],
   )
 
   const handleNodeDoubleClick = useCallback<NodeMouseHandler>(
@@ -245,11 +250,26 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if (event.ctrlKey || event.metaKey) {
+        if (isEditableTarget(event.target)) return
+        const k = event.key.toLowerCase()
+        if (k === 'z' && !event.shiftKey) {
+          event.preventDefault()
+          undo(layer)
+          return
+        }
+        if ((k === 'z' && event.shiftKey) || k === 'y') {
+          event.preventDefault()
+          redo(layer)
+          return
+        }
+        return
+      }
+      if (event.altKey) return
       const key = event.key.toLowerCase()
       if (key === 'escape') {
         if (useGraphStore.getState().editingNodeId) {
-          cancelEditing(layer)
+          cancelEditing()
           return
         }
         closeMenu()
@@ -258,6 +278,11 @@ function CanvasInner({ layer }: { layer: Layer }) {
         return
       }
       if (isEditableTarget(event.target)) return
+      if (key === 'delete' || key === 'backspace') {
+        event.preventDefault()
+        deleteSelection(layer)
+        return
+      }
       const toolByKey: Record<string, PlaceableTool | 'select' | 'wire'> = {
         v: 'select',
         r: 'rect',
@@ -268,7 +293,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
       const next = toolByKey[key]
       if (next && next !== tool) setTool(next)
     },
-    [cancelEditing, layer, closeMenu, wireSource, setWireSource, tool, setTool],
+    [cancelEditing, closeMenu, wireSource, setWireSource, tool, setTool, undo, redo, layer, deleteSelection],
   )
 
   useEffect(() => {
@@ -297,7 +322,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
         onNodeDoubleClick={handleNodeDoubleClick}
         onSelectionChange={handleSelectionChange}
         colorMode="dark"
-        deleteKeyCode={['Backspace', 'Delete']}
+        deleteKeyCode={null}
         connectionRadius={24}
         panOnDrag={tool === 'select' ? [1] : tool === 'wire'}
         panOnScroll

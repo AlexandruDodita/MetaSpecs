@@ -1,4 +1,4 @@
-import type { Edge, Node, NodeChange, EdgeChange } from '@xyflow/react'
+import type { Edge, Node, NodeChange, EdgeChange, NodePositionChange } from '@xyflow/react'
 import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
 import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ShapeKind } from './types'
@@ -19,8 +19,33 @@ export interface Drawing {
 
 const EMPTY_GRAPH: LayerGraph = { nodes: [], edges: [] }
 
+const HISTORY_LIMIT = 50
+
+function pushHistory(state: GraphState, layer: Layer) {
+  return {
+    past: {
+      ...state.past,
+      [layer]: [...state.past[layer], state.graphs[layer]].slice(-HISTORY_LIMIT),
+    },
+    future: { ...state.future, [layer]: [] },
+  }
+}
+
+function removeFromGraph(graph: LayerGraph, nodeIds: Set<string>, edgeIds: Set<string>): LayerGraph {
+  const nodes = graph.nodes.filter((n) => !nodeIds.has(n.id))
+  const edges = graph.edges.filter(
+    (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
+  )
+  return { nodes, edges }
+}
+
+const marksDirty = (c: NodeChange | EdgeChange) => c.type !== 'select' && c.type !== 'dimensions'
+
 interface GraphState {
   graphs: Record<Layer, LayerGraph>
+  past: Record<Layer, LayerGraph[]>
+  future: Record<Layer, LayerGraph[]>
+  draggingNodes: boolean
   activeLayer: Layer
   dirty: Record<Layer, boolean>
   saveState: 'idle' | 'saving' | 'saved' | 'error'
@@ -32,10 +57,15 @@ interface GraphState {
   editingNodeId: string | null
   editDraft: EditDraft | null
   selectedNodeIds: string[]
+  selectedEdgeIds: string[]
+  undo: (layer: Layer) => void
+  redo: (layer: Layer) => void
   setActiveLayer: (layer: Layer) => void
   setTool: (tool: Tool) => void
   setWireSource: (nodeId: string | null) => void
   setSelectedNodeIds: (ids: string[]) => void
+  setSelectedEdgeIds: (ids: string[]) => void
+  deleteSelection: (layer: Layer) => void
   onNodesChange: (layer: Layer, changes: NodeChange[]) => void
   onEdgesChange: (layer: Layer, changes: EdgeChange[]) => void
   onConnect: (layer: Layer, connection: {
@@ -57,7 +87,8 @@ interface GraphState {
   updateDrawing: (x: number, y: number) => void
   finishDrawing: () => void
   startEditing: (layer: Layer, nodeId: string) => void
-  cancelEditing: (layer: Layer) => void
+  updateEditDraft: (patch: Partial<EditDraft>) => void
+  cancelEditing: () => void
   commitEditing: (layer: Layer) => void
   persist: (layer: Layer) => Promise<void>
   persistDirty: () => Promise<void>
@@ -83,6 +114,9 @@ function makeEdge(layer: Layer, source: string, target: string, sourceHandle?: s
 
 export const useGraphStore = create<GraphState>((set, get) => ({
   graphs: { backend: EMPTY_GRAPH, db: EMPTY_GRAPH, frontend: EMPTY_GRAPH },
+  past: { backend: [], db: [], frontend: [] },
+  future: { backend: [], db: [], frontend: [] },
+  draggingNodes: false,
   activeLayer: 'backend',
   dirty: { backend: false, db: false, frontend: false },
   saveState: 'idle',
@@ -94,10 +128,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   editingNodeId: null,
   editDraft: null,
   selectedNodeIds: [],
+  selectedEdgeIds: [],
 
   setActiveLayer: (layer) => {
     get().commitEditing(get().activeLayer)
-    set({ activeLayer: layer, wireSource: null, selectedNodeIds: [] })
+    set({ activeLayer: layer, wireSource: null, selectedNodeIds: [], selectedEdgeIds: [] })
   },
 
   setTool: (tool) => set({ tool, wireSource: null, drawing: null }),
@@ -106,35 +141,97 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
 
-  onNodesChange: (layer, changes) =>
-    set((state) => ({
-      graphs: {
-        ...state.graphs,
-        [layer]: {
-          ...state.graphs[layer],
-          nodes: applyNodeChanges(
-            changes as unknown as NodeChange[],
-            state.graphs[layer].nodes as unknown as Node[],
-          ) as unknown as AppNode[],
+  setSelectedEdgeIds: (ids) => set({ selectedEdgeIds: ids }),
+
+  undo: (layer) =>
+    set((state) => {
+      if (state.past[layer].length === 0) return {}
+      const previous = state.past[layer][state.past[layer].length - 1]
+      return {
+        graphs: { ...state.graphs, [layer]: previous },
+        past: { ...state.past, [layer]: state.past[layer].slice(0, -1) },
+        future: {
+          ...state.future,
+          [layer]: [state.graphs[layer], ...state.future[layer]],
         },
-      },
-      dirty: { ...state.dirty, [layer]: true },
-    })),
+        dirty: { ...state.dirty, [layer]: true },
+        editingNodeId: null,
+        editDraft: null,
+      }
+    }),
+
+  redo: (layer) =>
+    set((state) => {
+      if (state.future[layer].length === 0) return {}
+      const [next, ...rest] = state.future[layer]
+      return {
+        graphs: { ...state.graphs, [layer]: next },
+        past: { ...state.past, [layer]: [...state.past[layer], state.graphs[layer]] },
+        future: { ...state.future, [layer]: rest },
+        dirty: { ...state.dirty, [layer]: true },
+        editingNodeId: null,
+        editDraft: null,
+      }
+    }),
+
+  onNodesChange: (layer, changes) =>
+    set((state) => {
+      const firstDrag =
+        !state.draggingNodes &&
+        changes.some(
+          (c) => c.type === 'position' && (c as NodePositionChange).dragging === true,
+        )
+      const dragEnd = changes.some(
+        (c) => c.type === 'position' && (c as NodePositionChange).dragging === false,
+      )
+      const marksHistory = changes.some(
+        (c) => c.type === 'add' || c.type === 'remove' || c.type === 'replace',
+      )
+      const history = firstDrag || marksHistory ? pushHistory(state, layer) : {}
+      return {
+        graphs: {
+          ...state.graphs,
+          [layer]: {
+            ...state.graphs[layer],
+            nodes: applyNodeChanges(
+              changes as unknown as NodeChange[],
+              state.graphs[layer].nodes as unknown as Node[],
+            ) as unknown as AppNode[],
+          },
+        },
+        dirty: {
+          ...state.dirty,
+          [layer]: changes.some(marksDirty) ? true : state.dirty[layer],
+        },
+        draggingNodes: dragEnd ? false : firstDrag ? true : state.draggingNodes,
+        ...history,
+      }
+    }),
 
   onEdgesChange: (layer, changes) =>
-    set((state) => ({
-      graphs: {
-        ...state.graphs,
-        [layer]: {
-          ...state.graphs[layer],
-          edges: applyEdgeChanges(
-            changes as unknown as EdgeChange[],
-            state.graphs[layer].edges as unknown as Edge[],
-          ) as unknown as AppEdge[],
+    set((state) => {
+      const marksHistory = changes.some(
+        (c) => c.type === 'add' || c.type === 'remove' || c.type === 'replace',
+      )
+      const history = marksHistory ? pushHistory(state, layer) : {}
+      return {
+        graphs: {
+          ...state.graphs,
+          [layer]: {
+            ...state.graphs[layer],
+            edges: applyEdgeChanges(
+              changes as unknown as EdgeChange[],
+              state.graphs[layer].edges as unknown as Edge[],
+            ) as unknown as AppEdge[],
+          },
         },
-      },
-      dirty: { ...state.dirty, [layer]: true },
-    })),
+        dirty: {
+          ...state.dirty,
+          [layer]: changes.some(marksDirty) ? true : state.dirty[layer],
+        },
+        ...history,
+      }
+    }),
 
   onConnect: (layer, connection) =>
     set((state) => ({
@@ -155,6 +252,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         },
       },
       dirty: { ...state.dirty, [layer]: true },
+      ...pushHistory(state, layer),
     })),
 
   connectNodes: (layer, source, target) =>
@@ -167,6 +265,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         },
       },
       dirty: { ...state.dirty, [layer]: true },
+      ...pushHistory(state, layer),
     })),
 
   addNodeAt: (layer, node) =>
@@ -176,15 +275,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         [layer]: { ...state.graphs[layer], nodes: [...state.graphs[layer].nodes, node] },
       },
       dirty: { ...state.dirty, [layer]: true },
+      ...pushHistory(state, layer),
     })),
 
   removeNodes: (layer, ids) => {
     const idsSet = new Set(ids)
     set((state) => {
-      const nodes = state.graphs[layer].nodes.filter((n) => !idsSet.has(n.id))
-      const edges = state.graphs[layer].edges.filter(
-        (e) => !idsSet.has(e.source) && !idsSet.has(e.target),
-      )
+      const { nodes, edges } = removeFromGraph(state.graphs[layer], idsSet, new Set())
       return {
         graphs: { ...state.graphs, [layer]: { nodes, edges } },
         dirty: { ...state.dirty, [layer]: true },
@@ -194,22 +291,48 @@ export const useGraphStore = create<GraphState>((set, get) => ({
             : state.editingNodeId,
         wireSource:
           state.wireSource && idsSet.has(state.wireSource) ? null : state.wireSource,
+        ...pushHistory(state, layer),
       }
     })
   },
 
   removeEdges: (layer, ids) => {
     const idsSet = new Set(ids)
-    set((state) => ({
-      graphs: {
-        ...state.graphs,
-        [layer]: {
-          ...state.graphs[layer],
-          edges: state.graphs[layer].edges.filter((e) => !idsSet.has(e.id)),
-        },
-      },
-      dirty: { ...state.dirty, [layer]: true },
-    }))
+    set((state) => {
+      const { nodes, edges } = removeFromGraph(state.graphs[layer], new Set(), idsSet)
+      return {
+        graphs: { ...state.graphs, [layer]: { nodes, edges } },
+        dirty: { ...state.dirty, [layer]: true },
+        ...pushHistory(state, layer),
+      }
+    })
+  },
+
+  deleteSelection: (layer) => {
+    const { selectedNodeIds, selectedEdgeIds } = get()
+    if (selectedNodeIds.length === 0 && selectedEdgeIds.length === 0) return
+    const nodeIds = new Set(selectedNodeIds)
+    const edgeIds = new Set(selectedEdgeIds)
+    set((state) => {
+      const { nodes, edges } = removeFromGraph(state.graphs[layer], nodeIds, edgeIds)
+      return {
+        graphs: { ...state.graphs, [layer]: { nodes, edges } },
+        dirty: { ...state.dirty, [layer]: true },
+        editingNodeId:
+          state.editingNodeId && nodeIds.has(state.editingNodeId)
+            ? null
+            : state.editingNodeId,
+        editDraft:
+          state.editingNodeId && nodeIds.has(state.editingNodeId)
+            ? null
+            : state.editDraft,
+        wireSource:
+          state.wireSource && nodeIds.has(state.wireSource) ? null : state.wireSource,
+        selectedNodeIds: [],
+        selectedEdgeIds: [],
+        ...pushHistory(state, layer),
+      }
+    })
   },
 
   duplicateNode: (layer, nodeId) => {
@@ -238,6 +361,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       wireSource: null,
       drawing: null,
       selectedNodeIds: [],
+      ...pushHistory(state, layer),
     })),
 
   updateNodeData: (layer, nodeId, data) =>
@@ -252,6 +376,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         },
       },
       dirty: { ...state.dirty, [layer]: true },
+      ...pushHistory(state, layer),
     })),
 
   updateEdgeLabel: (layer, edgeId, label) =>
@@ -266,6 +391,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         },
       },
       dirty: { ...state.dirty, [layer]: true },
+      ...pushHistory(state, layer),
     })),
 
   updateNodeSize: (layer, nodeId, width, height) =>
@@ -282,6 +408,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         },
       },
       dirty: { ...state.dirty, [layer]: true },
+      ...pushHistory(state, layer),
     })),
 
   startDrawing: (kind, x, y) => set({ drawing: { kind, x, y, w: 0, h: 0 } }),
@@ -317,20 +444,35 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     })
   },
 
-  cancelEditing: (layer) => {
-    const { editingNodeId, editDraft } = get()
-    if (!editingNodeId || !editDraft) return
-    get().updateNodeData(layer, editingNodeId, {
-      label: editDraft.label,
-      columns: editDraft.columns,
-      items: editDraft.items,
-    })
+  updateEditDraft: (patch) => {
+    const draft = get().editDraft
+    if (!draft) return
+    set({ editDraft: { ...draft, ...patch } })
+  },
+
+  cancelEditing: () => {
     set({ editingNodeId: null, editDraft: null })
   },
 
-  commitEditing: (_layer) => {
-    const { editingNodeId } = get()
-    if (!editingNodeId) return
+  commitEditing: (layer) => {
+    const { editingNodeId, editDraft } = get()
+    if (!editingNodeId || !editDraft) return
+    const node = get().graphs[layer].nodes.find((n) => n.id === editingNodeId)
+    if (!node) {
+      set({ editingNodeId: null, editDraft: null })
+      return
+    }
+    if (node.type === 'table') {
+      get().updateNodeData(layer, editingNodeId, {
+        label: editDraft.label,
+        columns: editDraft.columns,
+      })
+    } else if (node.type === 'shape') {
+      get().updateNodeData(layer, editingNodeId, {
+        label: editDraft.label,
+        items: editDraft.items,
+      })
+    }
     set({ editingNodeId: null, editDraft: null })
   },
 
@@ -365,7 +507,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       loadGraph('db'),
       loadGraph('frontend'),
     ])
-    set({ graphs: { backend, db, frontend }, loadSeq: get().loadSeq + 1 })
+    set({
+      graphs: { backend, db, frontend },
+      past: { backend: [], db: [], frontend: [] },
+      future: { backend: [], db: [], frontend: [] },
+      loadSeq: get().loadSeq + 1,
+    })
   },
 }))
 
@@ -379,4 +526,8 @@ export const useLayerNodes = (layer: Layer) =>
   useGraphStore((state) => state.graphs[layer].nodes)
 export const useLayerEdges = (layer: Layer) =>
   useGraphStore((state) => state.graphs[layer].edges)
+export const useCanUndo = (layer: Layer) =>
+  useGraphStore((state) => state.past[layer].length > 0)
+export const useCanRedo = (layer: Layer) =>
+  useGraphStore((state) => state.future[layer].length > 0)
 export const useActiveLayer = () => useGraphStore((state) => state.activeLayer)

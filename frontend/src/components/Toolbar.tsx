@@ -1,4 +1,4 @@
-import { useGraphStore } from '../store'
+import { useGraphStore, useCanUndo, useCanRedo } from '../store'
 import type { Tool } from '../store'
 import type { Layer } from '../types'
 
@@ -17,13 +17,17 @@ export function Toolbar() {
   const selected = useGraphStore((s) => s.selectedNodeIds)
   const startEditing = useGraphStore((s) => s.startEditing)
   const duplicateNode = useGraphStore((s) => s.duplicateNode)
-  const removeNodes = useGraphStore((s) => s.removeNodes)
+  const deleteSelection = useGraphStore((s) => s.deleteSelection)
   const clearLayer = useGraphStore((s) => s.clearLayer)
   const persist = useGraphStore((s) => s.persist)
   const dirty = useGraphStore((s) => s.dirty)
+  const undo = useGraphStore((s) => s.undo)
+  const redo = useGraphStore((s) => s.redo)
 
   const layer: Layer = activeLayer
   const hasSelection = selected.length > 0
+  const canUndo = useCanUndo(layer)
+  const canRedo = useCanRedo(layer)
 
   return (
     <aside className="toolbar" aria-label="tools">
@@ -61,9 +65,28 @@ export function Toolbar() {
         className="toolbar__btn toolbar__btn--danger"
         title="Delete selected nodes"
         disabled={!hasSelection}
-        onClick={() => removeNodes(layer, selected)}
+        onClick={() => deleteSelection(layer)}
       >
         <span className="toolbar__icon">🗑</span>
+      </button>
+
+      <div className="toolbar__divider" />
+
+      <button
+        className="toolbar__btn"
+        title="Undo (Ctrl+Z)"
+        disabled={!canUndo}
+        onClick={() => undo(layer)}
+      >
+        <span className="toolbar__icon">↶</span>
+      </button>
+      <button
+        className="toolbar__btn"
+        title="Redo (Ctrl+Shift+Z)"
+        disabled={!canRedo}
+        onClick={() => redo(layer)}
+      >
+        <span className="toolbar__icon">↷</span>
       </button>
 
       <div className="toolbar__divider" />

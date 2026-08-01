@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Handle, NodeResizer, Position } from '@xyflow/react'
 import { useUpdateNodeInternals } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
@@ -50,36 +51,27 @@ function ConstraintSelect({
   )
 }
 
-function EditForm({ id, onDone }: { id: string; onDone: () => void }) {
-  const activeLayer = useGraphStore((s) => s.activeLayer)
-  const data = useGraphStore((s) =>
-    s.graphs[s.activeLayer].nodes.find((n) => n.id === id)?.data,
-  )
-  const updateNodeData = useGraphStore((s) => s.updateNodeData)
+function EditForm({ onDone }: { onDone: () => void }) {
+  const draft = useGraphStore((s) => s.editDraft)
+  const updateEditDraft = useGraphStore((s) => s.updateEditDraft)
   const cancelEditing = useGraphStore((s) => s.cancelEditing)
-  const updateNodeInternals = useUpdateNodeInternals()
 
-  const columns = (data?.columns as Column[] | undefined) ?? []
-  const label = (data?.label as string | undefined) ?? ''
+  const columns = draft?.columns ?? []
+  const label = draft?.label ?? ''
 
-  const setLabel = (value: string) => updateNodeData(activeLayer, id, { label: value })
+  const setLabel = (value: string) => updateEditDraft({ label: value })
 
   const setColumn = (index: number, field: keyof Column, value: string) => {
     const next = columns.map((col, i) => (i === index ? { ...col, [field]: value } : col))
-    updateNodeData(activeLayer, id, { columns: next })
-    updateNodeInternals(id)
+    updateEditDraft({ columns: next })
   }
 
   const addColumn = () => {
-    updateNodeData(activeLayer, id, {
-      columns: [...columns, { name: '', type: 'varchar', constraint: '' }],
-    })
-    updateNodeInternals(id)
+    updateEditDraft({ columns: [...columns, { name: '', type: 'varchar', constraint: '' }] })
   }
 
   const removeColumn = (index: number) => {
-    updateNodeData(activeLayer, id, { columns: columns.filter((_, i) => i !== index) })
-    updateNodeInternals(id)
+    updateEditDraft({ columns: columns.filter((_, i) => i !== index) })
   }
 
   return (
@@ -135,7 +127,7 @@ function EditForm({ id, onDone }: { id: string; onDone: () => void }) {
       </button>
       <div className="table-edit__actions">
         <button onClick={onDone}>Save</button>
-        <button onClick={() => cancelEditing(activeLayer)}>Cancel</button>
+        <button onClick={() => cancelEditing()}>Cancel</button>
       </div>
     </div>
   )
@@ -144,8 +136,14 @@ function EditForm({ id, onDone }: { id: string; onDone: () => void }) {
 function SchemaView({ id }: { id: string }) {
   const data = useGraphStore((s) => s.graphs[s.activeLayer].nodes.find((n) => n.id === id)?.data)
   const isEditing = useGraphStore((s) => s.editingNodeId)
+  const updateNodeInternals = useUpdateNodeInternals()
   const columns = (data?.columns as Column[] | undefined) ?? []
   const label = (data?.label as string | undefined) ?? 'table'
+  const columnKey = columns.map((c) => c.name).join('|')
+
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [id, columnKey, updateNodeInternals])
 
   return (
     <>
@@ -250,7 +248,7 @@ function TableNode({ id }: NodeProps) {
         isConnectable={!isEditing}
       />
       {isEditing ? (
-        <EditForm id={id} onDone={() => commitEditing(activeLayer)} />
+        <EditForm onDone={() => commitEditing(activeLayer)} />
       ) : (
         <SchemaView id={id} />
       )}

@@ -2,16 +2,13 @@ import { Handle, NodeResizer, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useGraphStore } from '../store'
 
-function ShapeEditForm({ id, onDone }: { id: string; onDone: () => void }) {
-  const activeLayer = useGraphStore((s) => s.activeLayer)
-  const data = useGraphStore((s) =>
-    s.graphs[s.activeLayer].nodes.find((n) => n.id === id)?.data,
-  )
-  const updateNodeData = useGraphStore((s) => s.updateNodeData)
+function ShapeEditForm({ onDone }: { onDone: () => void }) {
+  const draft = useGraphStore((s) => s.editDraft)
+  const updateEditDraft = useGraphStore((s) => s.updateEditDraft)
   const cancelEditing = useGraphStore((s) => s.cancelEditing)
 
-  const label = (data?.label as string | undefined) ?? ''
-  const items = (data?.items as string[] | undefined) ?? []
+  const label = draft?.label ?? ''
+  const items = draft?.items ?? []
 
   return (
     <div
@@ -23,20 +20,20 @@ function ShapeEditForm({ id, onDone }: { id: string; onDone: () => void }) {
       <input
         className="shape-edit__input"
         value={label}
-        onChange={(e) => updateNodeData(activeLayer, id, { label: e.target.value })}
+        onChange={(e) => updateEditDraft({ label: e.target.value })}
         placeholder="label"
         autoFocus
       />
       <textarea
         className="shape-edit__items"
         value={items.join('\n')}
-        onChange={(e) => updateNodeData(activeLayer, id, { items: e.target.value.split('\n') })}
+        onChange={(e) => updateEditDraft({ items: e.target.value.split('\n') })}
         placeholder={'one item per line\ne.g. GET /users\nPOST /users'}
         rows={Math.max(3, items.length + 1)}
       />
       <div className="shape-edit__actions">
         <button onClick={onDone}>Save</button>
-        <button onClick={() => cancelEditing(activeLayer)}>Cancel</button>
+        <button onClick={() => cancelEditing()}>Cancel</button>
       </div>
     </div>
   )
@@ -112,7 +109,7 @@ function ShapeNode({ id, data }: NodeProps) {
         isConnectable={!isEditing}
       />
       {isEditing ? (
-        <ShapeEditForm id={id} onDone={() => commitEditing(activeLayer)} />
+        <ShapeEditForm onDone={() => commitEditing(activeLayer)} />
       ) : (
         <ShapeView id={id} kind={kind} />
       )}
