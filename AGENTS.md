@@ -169,6 +169,13 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   into a top-level `skipped_cross_layer` list rather than emitting them.
 - Static import analysis cannot see the frontend→backend relationship at all: it
   is an HTTP call, not an import. That edge has to be authored by hand.
+- `snapshots/metaspecs.json` is this repo described by its own importer — the
+  committed baseline to diff a fresh scan against:
+  `.venv/bin/python tools/import_repo.py --out /tmp/now.json && .venv/bin/python tools/diff_graphs.py snapshots/metaspecs.json /tmp/now.json`
+  (exit 1 means the code moved). Regenerate it in the same commit as any change
+  that shifts the graph, or it silently stops being a baseline. Committing it is
+  safe: `.json` is not in `LANGUAGES`, so the file cannot feed back into a
+  later scan.
 - `tools/diff_graphs.py` matches nodes by id first, then by non-empty
   `data.path` — a node added by hand in the UI has a random id and would never
   id-match its imported counterpart. Those show under "reconciled by path".
