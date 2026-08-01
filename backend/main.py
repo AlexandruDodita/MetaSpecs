@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.routes import compile, graph, imports, projects, validate
+from backend.routes import compile, fs, graph, imports, projects, validate
 
 app = FastAPI(title="MetaSpecs", version="0.1.0")
 
@@ -28,6 +28,7 @@ app.include_router(graph.router, prefix=API_PREFIX)
 app.include_router(validate.router, prefix=API_PREFIX)
 app.include_router(compile.router, prefix=API_PREFIX)
 app.include_router(imports.router, prefix=API_PREFIX)
+app.include_router(fs.router, prefix=API_PREFIX)
 
 DIST = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 

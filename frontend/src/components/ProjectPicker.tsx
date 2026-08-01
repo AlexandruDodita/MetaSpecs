@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ImportResult, ProjectInfo } from '../types'
 import { createProject, deleteProject, importRepo, listProjects } from '../api'
+import { DirectoryPicker } from './DirectoryPicker'
 
 interface ProjectPickerProps {
   onOpen: (project: ProjectInfo) => void
@@ -23,7 +24,7 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [importPath, setImportPath] = useState('')
+  const [browsing, setBrowsing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [imported, setImported] = useState<ProjectInfo | null>(null)
@@ -62,12 +63,7 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
     }
   }
 
-  const runImport = async () => {
-    const path = importPath.trim()
-    if (!path) {
-      setError('Enter a path to a codebase to import.')
-      return
-    }
+  const runImport = async (path: string) => {
     setImporting(true)
     setError(null)
     setResult(null)
@@ -123,27 +119,17 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
           </button>
         </form>
 
-        <form
-          className="project-picker__import"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void runImport()
-          }}
-        >
-          <input
-            className="project-picker__path"
-            value={importPath}
-            onChange={(e) => setImportPath(e.target.value)}
-            placeholder="/path/to/a/checkout"
-            spellCheck={false}
-            disabled={importing}
-          />
-          <button type="submit" disabled={busy || importing}>
-            {importing ? 'Scanning…' : 'Import codebase'}
+        <div className="project-picker__import">
+          <button
+            type="button"
+            onClick={() => { setError(null); setBrowsing(true) }}
+            disabled={busy || importing}
+          >
+            {importing ? 'Scanning…' : 'Import codebase…'}
           </button>
-        </form>
+        </div>
         <p className="project-picker__hint">
-          Reads the folder on this machine and snapshots its services, classes and
+          Pick a folder on this machine and snapshot its services, classes and
           functions into a new project.
         </p>
 
@@ -236,6 +222,13 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
             </ul>
           )}
         </div>
+
+        {browsing && (
+          <DirectoryPicker
+            onCancel={() => setBrowsing(false)}
+            onChoose={(path) => { setBrowsing(false); void runImport(path) }}
+          />
+        )}
       </div>
     </div>
   )

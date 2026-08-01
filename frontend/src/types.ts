@@ -168,6 +168,20 @@ export interface ImportResult {
   layers: Record<string, number>
 }
 
+export interface DirEntry {
+  name: string
+  path: string
+  is_repo: boolean
+}
+
+export interface DirListing {
+  path: string
+  parent: string | null
+  home: string
+  entries: DirEntry[]
+  truncated: boolean
+}
+
 export interface ProjectReports {
   scope: string
   validation: ValidationReport | null

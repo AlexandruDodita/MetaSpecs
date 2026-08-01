@@ -16,10 +16,15 @@ agent-execution loop (MVP stops at tasks.json).
 ## Layout
 
 - `backend/` — FastAPI. Entrypoint `backend/main.py` (`app`). Routes in
-  `backend/routes/{projects,graph,validate,compile,imports}.py`, each with its
-  own `APIRouter`, mounted with prefix `/api`. Pydantic models in
+  `backend/routes/{projects,graph,validate,compile,imports,fs}.py`, each with
+  its own `APIRouter`, mounted with prefix `/api`. Pydantic models in
   `backend/models.py` (incl. `Project`, `ProjectInfo`, `ProjectReports`,
-  `ImportRequest`/`ImportStats`/`ImportResult`). Services in
+  `ImportRequest`/`ImportStats`/`ImportResult`, `DirEntry`/`DirListing`).
+  `routes/fs.py` serves `GET /fs/dirs` — directory NAMES only, one level, never
+  file contents; it exists because browsers refuse JS an absolute path, so a
+  native folder dialog cannot tell the server what to scan. Safe only because
+  uvicorn binds `127.0.0.1` and CORS is limited to the Vite origins; do not
+  widen either without revisiting it. Services in
   `backend/services/`: `storage.py` (JSON file IO, one file per project),
   `llm.py` (OpenAI + instructor client), `validate.py`, `compile.py`,
   `importer.py` (thin wrapper over `tools/import_repo.py` — it holds no scanning
@@ -33,9 +38,12 @@ agent-execution loop (MVP stops at tasks.json).
   project-scoped); `src/components/GraphCanvas.tsx` one `<ReactFlow>` per layer
   (drag-to-draw preview, context menus, wire tool, dark mode);
   `src/components/ProjectPicker.tsx` create/open/delete project screen (shown
-  when `store.project` is null) — also hosts "Import codebase", which creates a
-  project, POSTs the path to `/import`, and shows a counts/languages/warnings
-  summary; a failed import deletes the project it just created; `src/components/TableNode.tsx` table node
+  when `store.project` is null) — also hosts "Import codebase…", which opens
+  `src/components/DirectoryPicker.tsx` (modal folder browser over `/fs/dirs`:
+  breadcrumb, Home/Up, show-hidden, `git` badges, paste-a-path box, Escape to
+  close), then creates a project, POSTs the chosen path to `/import`, and shows
+  a counts/languages/warnings summary; a failed import deletes the project it
+  just created; `src/components/TableNode.tsx` table node
   (Oracle-style schema rows, one left/right handle pair per column) and
   `src/components/ShapeNode.tsx` generic shapes — rect (header + item list) and
   circle — both with edit mode (dropdowns/textarea, save/cancel/outside-click);
@@ -221,9 +229,15 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
 - `api.ts`'s `request()` prefers FastAPI's JSON `detail` over
   `status statusText`, so route handlers should raise `HTTPException` with a
   message worth showing a user — it reaches the screen verbatim.
-- The picker's path field is `.project-picker__path`, NOT
-  `.project-picker__name`; sharing that class made the selector ambiguous and
-  broke `e2e-smoke.mjs` under Playwright strict mode. Both share one CSS rule.
+- `DirectoryPicker` renders as the last child of `.project-picker__inner`,
+  outside both `<form>`s — its jump-to-path box is its own form, and a nested
+  form is invalid HTML that would submit the outer one. Its `go()` mirrors the
+  landed path back into that box, so a listing that resolves mid-typing
+  overwrites what you were typing (only reachable in the first moments after
+  the modal opens).
+- Don't reuse `.project-picker__name` for a second input on the picker: an
+  earlier version did, which made that selector ambiguous and broke
+  `e2e-smoke.mjs` under Playwright strict mode.
 - Placement tools (`rect|circle|table`) draw on drag: pane `mousedown`
   (native listener on `.react-flow__pane`, v12 has no `onPaneMouseDown` prop)
   → live `drawing` rect in the store → a `preview` node appended to the

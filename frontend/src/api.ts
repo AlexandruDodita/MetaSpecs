@@ -1,4 +1,4 @@
-import type { ImportResult, Layer, LayerGraph, ProjectInfo, ProjectReports, TaskList, ValidationReport } from './types'
+import type { DirListing, ImportResult, Layer, LayerGraph, ProjectInfo, ProjectReports, TaskList, ValidationReport } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init)
@@ -69,3 +69,8 @@ export const importRepo = (projectId: string, path: string): Promise<ImportResul
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
   })
+
+export const listDirs = (path = '', showHidden = false): Promise<DirListing> =>
+  request<DirListing>(
+    `/api/fs/dirs?path=${encodeURIComponent(path)}&show_hidden=${showHidden}`,
+  )

@@ -178,3 +178,17 @@ class ImportResult(BaseModel):
     path: str
     stats: ImportStats
     layers: dict[str, int] = Field(default_factory=dict)   # layer -> node count
+
+
+class DirEntry(BaseModel):
+    name: str
+    path: str
+    is_repo: bool = False
+
+
+class DirListing(BaseModel):
+    path: str
+    parent: str | None = None
+    home: str
+    entries: list[DirEntry] = Field(default_factory=list)
+    truncated: bool = False
