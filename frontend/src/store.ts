@@ -3,6 +3,7 @@ import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
 import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ShapeKind } from './types'
 import { loadGraph, saveGraph } from './api'
+import { uid } from './nodeFactory'
 
 export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'wire'
 export type PlaceableTool = 'rect' | 'circle' | 'table'
@@ -61,7 +62,7 @@ interface GraphState {
 
 function makeEdge(layer: Layer, source: string, target: string, sourceHandle?: string | null, targetHandle?: string | null): AppEdge {
   return {
-    id: `e-${layer}-${Date.now()}`,
+    id: uid(`e-${layer}`),
     source,
     target,
     sourceHandle: sourceHandle ?? undefined,
@@ -210,7 +211,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     if (!node) return
     const copy: AppNode = {
       ...node,
-      id: `n-${Date.now()}`,
+      id: uid('n'),
       position: { x: node.position.x + 40, y: node.position.y + 40 },
       selected: false,
     }

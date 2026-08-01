@@ -61,6 +61,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const setSelectedNodeIds = useGraphStore((s) => s.setSelectedNodeIds)
   const setTool = useGraphStore((s) => s.setTool)
   const commitEditing = useGraphStore((s) => s.commitEditing)
+  const cancelEditing = useGraphStore((s) => s.cancelEditing)
   const startDrawing = useGraphStore((s) => s.startDrawing)
   const updateDrawing = useGraphStore((s) => s.updateDrawing)
   const { screenToFlowPosition, fitView } = useReactFlow()
@@ -246,14 +247,19 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return
+      if (event.ctrlKey || event.metaKey || event.altKey) return
       const key = event.key.toLowerCase()
       if (key === 'escape') {
+        if (useGraphStore.getState().editingNodeId) {
+          cancelEditing(layer)
+          return
+        }
         closeMenu()
         if (useGraphStore.getState().drawing) useGraphStore.getState().finishDrawing()
         if (wireSource) setWireSource(null)
         return
       }
+      if (isEditableTarget(event.target)) return
       const toolByKey: Record<string, PlaceableTool | 'select' | 'wire'> = {
         v: 'select',
         r: 'rect',
@@ -264,7 +270,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
       const next = toolByKey[key]
       if (next && next !== tool) setTool(next)
     },
-    [closeMenu, wireSource, setWireSource, tool, setTool],
+    [cancelEditing, layer, closeMenu, wireSource, setWireSource, tool, setTool],
   )
 
   useEffect(() => {

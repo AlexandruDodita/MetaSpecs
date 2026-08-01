@@ -6,8 +6,13 @@ export const DEFAULT_SIZE: Record<'table' | ShapeKind, { width: number; height: 
   circle: { width: 120, height: 120 },
 }
 
+let seq = 0
+export function uid(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`
+}
+
 export function makeNodeId(): string {
-  return `n-${Date.now()}`
+  return uid('n')
 }
 
 export function makeTableData(label = 'table'): TableNodeData {

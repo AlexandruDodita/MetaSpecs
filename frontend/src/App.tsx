@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Layer, TaskList, ValidationReport } from './types'
 import { useGraphStore } from './store'
 import { GraphCanvas } from './components/GraphCanvas'
@@ -34,6 +34,12 @@ function App() {
     loadAll().catch((e: Error) => setError(e.message))
   }, [loadAll])
 
+  const saveDirtyLayers = useCallback(async () => {
+    const { dirty, persist } = useGraphStore.getState()
+    const layers = (Object.keys(dirty) as Layer[]).filter((l) => dirty[l])
+    for (const l of layers) await persist(l)
+  }, [])
+
   const save = async () => {
     setError(null)
     try {
@@ -47,6 +53,7 @@ function App() {
     setBusy('validate')
     setError(null)
     try {
+      await saveDirtyLayers()
       setReport(await runValidate(scope))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -59,6 +66,7 @@ function App() {
     setBusy('compile')
     setError(null)
     try {
+      await saveDirtyLayers()
       setTasks(await runCompile(scope))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
