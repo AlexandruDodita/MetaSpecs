@@ -2,9 +2,13 @@ import type { Edge, Node } from '@xyflow/react'
 
 export type Layer = 'backend' | 'db' | 'frontend'
 
-export type NodeType = 'table' | 'shape' | 'preview'
+export type NodeType = 'table' | 'shape' | 'class' | 'service' | 'logic' | 'preview'
 
 export type ShapeKind = 'rect' | 'circle'
+
+export type Visibility = 'public' | 'private' | 'protected'
+
+export type LogicKind = 'start' | 'end' | 'step' | 'branch' | 'call'
 
 export interface Column {
   name: string
@@ -25,14 +29,56 @@ export interface ShapeNodeData {
   [key: string]: unknown
 }
 
+export interface Field {
+  name: string
+  visibility: Visibility
+  type: string
+}
+
+export interface NestedFlow {
+  nodes: AppNode[]
+  edges: AppEdge[]
+}
+
+export interface Method {
+  id: string
+  name: string
+  visibility: Visibility
+  returnType: string
+  params: string
+  flow: NestedFlow
+}
+
+export interface ClassNodeData {
+  label: string
+  fields: Field[]
+  methods: Method[]
+  [key: string]: unknown
+}
+
+export interface ServiceNodeData {
+  label: string
+  flow: NestedFlow
+  [key: string]: unknown
+}
+
+export interface LogicNodeData {
+  kind: LogicKind
+  label: string
+  [key: string]: unknown
+}
+
 export interface PreviewNodeData {
-  kind: 'table' | ShapeKind
+  kind: 'table' | ShapeKind | 'class' | 'service'
   [key: string]: unknown
 }
 
 export type GraphNodeData =
   | TableNodeData
   | ShapeNodeData
+  | ClassNodeData
+  | ServiceNodeData
+  | LogicNodeData
   | PreviewNodeData
   | Record<string, never>
 
@@ -49,6 +95,8 @@ export interface EditDraft {
   label: string
   columns: Column[]
   items: string[]
+  fields: Field[]
+  methods: Method[]
 }
 
 export type Severity = 'error' | 'warning' | 'info'

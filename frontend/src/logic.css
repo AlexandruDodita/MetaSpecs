@@ -1,0 +1,266 @@
+/* ---- TS-like syntax highlighting ---- */
+
+.hl--keyword {
+  color: #ff7eb6;
+}
+
+.hl--type {
+  color: #7bd88f;
+}
+
+.hl--string {
+  color: #e5c07b;
+}
+
+.hl--number {
+  color: #61afef;
+}
+
+.hl--comment {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.hl--ident {
+  color: #dfe6ff;
+}
+
+.hl--punct {
+  color: #8a93a6;
+}
+
+.hl--plain {
+  color: inherit;
+}
+
+/* ---- Visibility badges ---- */
+
+.vis--public {
+  color: #4caf7d;
+}
+
+.vis--private {
+  color: #e06c75;
+}
+
+.vis--protected {
+  color: #e5c07b;
+}
+
+/* ---- Logic nodes ---- */
+
+.logic-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  min-height: 30px;
+  color: #dfe6ff;
+  user-select: none;
+}
+
+.logic-node__shape {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: #26292f;
+  border: 1.5px solid #34363f;
+}
+
+.logic-node__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.logic-node__label {
+  cursor: text;
+}
+
+.logic-node--start {
+  min-width: 82px;
+  min-height: 34px;
+}
+
+.logic-node--start .logic-node__shape {
+  border-radius: 999px;
+  background: rgba(76, 175, 125, 0.13);
+  border-color: #4caf7d;
+}
+
+.logic-node--end {
+  min-width: 82px;
+  min-height: 34px;
+}
+
+.logic-node--end .logic-node__shape {
+  border-radius: 999px;
+  background: rgba(224, 108, 117, 0.13);
+  border-color: #e06c75;
+}
+
+.logic-node--step {
+  min-width: 110px;
+  min-height: 36px;
+}
+
+.logic-node--step .logic-node__shape {
+  border-radius: 8px;
+  background: rgba(122, 139, 255, 0.12);
+  border-color: #7a8bff;
+}
+
+.logic-node--branch {
+  min-width: 120px;
+  min-height: 66px;
+}
+
+.logic-node--branch .logic-node__shape {
+  border: none;
+  border-radius: 0;
+  background: rgba(229, 192, 123, 0.16);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.logic-node--branch .logic-node__content {
+  padding: 4px 16px;
+  font-size: 10px;
+}
+
+.logic-node--call {
+  min-width: 100px;
+  min-height: 34px;
+}
+
+.logic-node--call .logic-node__shape {
+  border-radius: 6px;
+  background: rgba(198, 120, 221, 0.12);
+  border-color: #c678dd;
+}
+
+.logic-node__badge {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  z-index: 2;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d7a4e8;
+  background: rgba(30, 24, 40, 0.9);
+  border: 1px solid #c678dd;
+  border-radius: 999px;
+  padding: 0 5px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.logic-node .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #5a6170;
+  border: 1.5px solid #16171b;
+}
+
+.logic-node--start .react-flow__handle {
+  background: #4caf7d;
+}
+
+.logic-node--end .react-flow__handle {
+  background: #e06c75;
+}
+
+.logic-node--step .react-flow__handle {
+  background: #7a8bff;
+}
+
+.logic-node--branch .react-flow__handle {
+  background: #e5c07b;
+}
+
+.logic-node--call .react-flow__handle {
+  background: #c678dd;
+}
+
+.react-flow__node.selected .logic-node {
+  box-shadow: 0 0 0 1.5px #7a8bff, 0 6px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- Logic label inline edit ---- */
+
+.logic-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 5;
+}
+
+.logic-edit__textarea {
+  width: 140px;
+  min-height: 30px;
+  resize: vertical;
+  background: #1f2127;
+  color: #dfe6ff;
+  border: 1px solid #7a8bff;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+  outline: none;
+}
+
+.logic-edit__textarea:focus {
+  box-shadow: 0 0 0 2px rgba(122, 139, 255, 0.35);
+}
+
+.logic-edit__bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.logic-edit__btn {
+  font-size: 10px;
+  padding: 1px 8px;
+  line-height: 1.6;
+  border-radius: 4px;
+  background: #26272e;
+  border: 1px solid #34363f;
+  color: #dfe6ff;
+  cursor: pointer;
+}
+
+.logic-edit__btn:hover {
+  background: #30323b;
+}
+
+/* ---- Nested sub-flow canvas ---- */
+
+.subflow {
+  background-color: transparent;
+  background-image: radial-gradient(
+    circle,
+    rgba(122, 139, 255, 0.08) 1px,
+    transparent 1px
+  );
+  background-size: 14px 14px;
+}
+
+.subflow .react-flow__renderer {
+  background: transparent;
+}
+
+.subflow .react-flow__edge-path {
+  stroke-width: 1.5;
+}

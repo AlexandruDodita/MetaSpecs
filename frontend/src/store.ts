@@ -1,17 +1,29 @@
 import type { Edge, Node, NodeChange, EdgeChange, NodePositionChange } from '@xyflow/react'
 import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
-import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ProjectInfo, ShapeKind } from './types'
+import type {
+  AppEdge,
+  AppNode,
+  ClassNodeData,
+  EditDraft,
+  Field,
+  Layer,
+  LayerGraph,
+  Method,
+  NestedFlow,
+  ProjectInfo,
+  ShapeKind,
+} from './types'
 import { loadGraph, saveGraph } from './api'
 import { DEFAULT_SIZE, uid, makeNodeId, type PlaceableKind } from './nodeFactory'
 import { closestSides } from './geometry'
 
-export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'wire'
-export type PlaceableTool = 'rect' | 'circle' | 'table'
+export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'class' | 'service' | 'wire'
+export type PlaceableTool = 'rect' | 'circle' | 'table' | 'class' | 'service'
 
 /** Live drag-to-draw rectangle in flow coordinates. */
 export interface Drawing {
-  kind: ShapeKind | 'table'
+  kind: ShapeKind | 'table' | 'class' | 'service'
   originX: number
   originY: number
   x: number
@@ -23,6 +35,13 @@ export interface Drawing {
 const EMPTY_GRAPH: LayerGraph = { nodes: [], edges: [] }
 
 const HISTORY_LIMIT = 50
+
+function deepCopyFlow(flow: NestedFlow): NestedFlow {
+  return {
+    nodes: flow.nodes.map((n) => ({ ...n, data: { ...(n.data as object) } })),
+    edges: flow.edges.map((e) => ({ ...e })),
+  }
+}
 
 function pushHistory(state: GraphState, layer: Layer) {
   return {
@@ -62,6 +81,14 @@ interface GraphState {
   editDraft: EditDraft | null
   selectedNodeIds: string[]
   selectedEdgeIds: string[]
+  /** UI-only: service nodeId → expanded. Not persisted, not in undo history. */
+  expanded: Record<string, boolean>
+  /** UI-only: class nodeId → expanded method id (null = none). Not persisted. */
+  expandedMethod: Record<string, string | null>
+  toggleExpanded: (nodeId: string) => void
+  setExpandedMethod: (nodeId: string, methodId: string | null) => void
+  saveMethodFlow: (layer: Layer, classNodeId: string, methodId: string, flow: NestedFlow) => void
+  saveServiceFlow: (layer: Layer, serviceNodeId: string, flow: NestedFlow) => void
   undo: (layer: Layer) => void
   redo: (layer: Layer) => void
   setProject: (project: ProjectInfo | null) => void
@@ -147,6 +174,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   editDraft: null,
   selectedNodeIds: [],
   selectedEdgeIds: [],
+  expanded: {},
+  expandedMethod: {},
+
+  toggleExpanded: (nodeId) =>
+    set((state) => ({ expanded: { ...state.expanded, [nodeId]: !state.expanded[nodeId] } })),
+
+  setExpandedMethod: (nodeId, methodId) =>
+    set((state) => ({ expandedMethod: { ...state.expandedMethod, [nodeId]: methodId } })),
 
   setActiveLayer: (layer) => {
     get().commitEditing(get().activeLayer)
@@ -163,6 +198,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       tool: 'select',
+      expanded: {},
+      expandedMethod: {},
     }),
 
   setTool: (tool) => set({ tool, wireSource: null, drawing: null }),
@@ -386,7 +423,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const kind: PlaceableKind =
       node.type === 'shape'
         ? ((node.data as { kind?: ShapeKind }).kind ?? 'rect')
-        : 'table'
+        : node.type === 'table' || node.type === 'class' || node.type === 'service'
+          ? node.type
+          : 'table'
     const width = (node.style?.width as number | undefined) ?? DEFAULT_SIZE[kind].width
     const copy: AppNode = {
       ...node,
@@ -422,6 +461,24 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       dirty: { ...state.dirty, [layer]: true },
       ...pushHistory(state, layer),
     })),
+
+  saveMethodFlow: (layer, classNodeId, methodId, flow) => {
+    const state = get()
+    const node = state.graphs[layer].nodes.find((n) => n.id === classNodeId)
+    if (!node || node.type !== 'class') return
+    const data = node.data as ClassNodeData
+    const methods = (data.methods ?? []).map((m) =>
+      m.id === methodId ? { ...m, flow: deepCopyFlow(flow) } : m,
+    )
+    get().updateNodeData(layer, classNodeId, { methods })
+  },
+
+  saveServiceFlow: (layer, serviceNodeId, flow) => {
+    const state = get()
+    const node = state.graphs[layer].nodes.find((n) => n.id === serviceNodeId)
+    if (!node || node.type !== 'service') return
+    get().updateNodeData(layer, serviceNodeId, { flow: deepCopyFlow(flow) })
+  },
 
   updateEdgeLabel: (layer, edgeId, label) =>
     set((state) => ({
@@ -477,14 +534,23 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   startEditing: (layer, nodeId) => {
     const node = get().graphs[layer].nodes.find((n) => n.id === nodeId)
     if (!node) return
-    const data = node.data as Partial<{ label: string; columns: ColumnLike[]; items: string[] }>
+    const data = node.data as Partial<{
+      label: string
+      columns: ColumnLike[]
+      items: string[]
+      fields: Field[]
+      methods: Method[]
+    }>
+    const draft: EditDraft = {
+      label: data.label ?? '',
+      columns: (data.columns ?? []).map((c) => ({ ...c })),
+      items: [...(data.items ?? [])],
+      fields: (data.fields ?? []).map((f) => ({ ...f })),
+      methods: (data.methods ?? []).map((m) => ({ ...m, flow: deepCopyFlow(m.flow) })),
+    }
     set({
       editingNodeId: nodeId,
-      editDraft: {
-        label: data.label ?? '',
-        columns: (data.columns ?? []).map((c) => ({ ...c })),
-        items: [...(data.items ?? [])],
-      },
+      editDraft: draft,
       selectedNodeIds: [nodeId],
     })
   },
@@ -516,6 +582,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       get().updateNodeData(layer, editingNodeId, {
         label: editDraft.label,
         items: editDraft.items,
+      })
+    } else if (node.type === 'class') {
+      get().updateNodeData(layer, editingNodeId, {
+        label: editDraft.label,
+        fields: editDraft.fields,
+        methods: editDraft.methods,
+      })
+    } else if (node.type === 'service') {
+      get().updateNodeData(layer, editingNodeId, {
+        label: editDraft.label,
       })
     }
     set({ editingNodeId: null, editDraft: null })
@@ -561,6 +637,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       past: { backend: [], db: [], frontend: [] },
       future: { backend: [], db: [], frontend: [] },
       loadSeq: get().loadSeq + 1,
+      expanded: {},
+      expandedMethod: {},
     })
   },
 }))

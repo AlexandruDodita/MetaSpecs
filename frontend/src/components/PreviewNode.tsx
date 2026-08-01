@@ -25,6 +25,42 @@ export default function PreviewNode({ data }: NodeProps) {
     )
   }
 
+  if (kind === 'class') {
+    return (
+      <div className="class-node class-node--ghost">
+        <div className="class-node__header">
+          <span className="class-node__name">class</span>
+          <span className="class-node__badge">CLASS</span>
+        </div>
+        <div className="class-node__body">
+          <div className="class-node__section">
+            <div className="class-node__section-title">FIELDS</div>
+            <div className="field-row">
+              <span className="vis--private">-</span>
+              <span className="field-row__name">name</span>
+            </div>
+            <div className="field-row">
+              <span className="vis--private">-</span>
+              <span className="field-row__name">id</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'service') {
+    return (
+      <div className="service-node service-node--ghost">
+        <div className="service-node__header">
+          <span className="service-node__name">service</span>
+          <span className="service-node__badge">SERVICE</span>
+        </div>
+        <div className="service-node__body" />
+      </div>
+    )
+  }
+
   if (kind === 'circle') {
     return (
       <div className="shape-node shape-node--ghost shape-node--circle">

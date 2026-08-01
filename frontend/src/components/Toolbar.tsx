@@ -1,12 +1,24 @@
+import { useEffect } from 'react'
 import { useGraphStore, useCanUndo, useCanRedo } from '../store'
 import type { Tool } from '../store'
 import type { Layer } from '../types'
 
-const TOOLS: { id: Tool; icon: string; label: string; key: string }[] = [
+interface ToolEntry {
+  id: Tool
+  icon: string
+  label: string
+  key: string
+  /** Layers this tool is available on; omitted = all layers. */
+  layers?: Layer[]
+}
+
+const TOOLS: ToolEntry[] = [
   { id: 'select', icon: '⯈', label: 'Select / move — Shift+drag to box-select', key: 'V' },
   { id: 'rect', icon: '▭', label: 'Draw rectangle (drag on canvas)', key: 'R' },
   { id: 'circle', icon: '◯', label: 'Draw circle (drag on canvas)', key: 'C' },
   { id: 'table', icon: '▦', label: 'Draw table (drag on canvas)', key: 'T' },
+  { id: 'class', icon: '❏', label: 'Draw class (drag on canvas)', key: 'K', layers: ['backend', 'frontend'] },
+  { id: 'service', icon: '⊞', label: 'Draw service (drag on canvas)', key: 'S', layers: ['backend'] },
   { id: 'wire', icon: '∿', label: 'Wire tool (click source, then target)', key: 'W' },
 ]
 
@@ -28,10 +40,15 @@ export function Toolbar() {
   const hasSelection = selected.length > 0
   const canUndo = useCanUndo(layer)
   const canRedo = useCanRedo(layer)
+  const visibleTools = TOOLS.filter((t) => !t.layers || t.layers.includes(layer))
+
+  useEffect(() => {
+    if (tool !== 'select' && !visibleTools.some((t) => t.id === tool)) setTool('select')
+  }, [visibleTools, tool, setTool])
 
   return (
     <aside className="toolbar" aria-label="tools">
-      {TOOLS.map((t) => (
+      {visibleTools.map((t) => (
         <button
           key={t.id}
           className={`toolbar__btn ${tool === t.id ? 'toolbar__btn--active' : ''}`}

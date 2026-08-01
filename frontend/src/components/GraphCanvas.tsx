@@ -28,13 +28,27 @@ import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
 import { ContextMenu } from './ContextMenu'
 import TableNode from './TableNode'
 import ShapeNode from './ShapeNode'
+import ClassNode from './ClassNode'
+import ServiceNode from './ServiceNode'
 import PreviewNode from './PreviewNode'
 import { MIN_SIZE, makeNode, type PlaceableKind } from '../nodeFactory'
 import { closestSides, nodeSizeOf, pointNode, sideAnchor, type Side } from '../geometry'
 
-const nodeTypes = { table: TableNode, shape: ShapeNode, preview: PreviewNode }
+const nodeTypes = {
+  table: TableNode,
+  shape: ShapeNode,
+  class: ClassNode,
+  service: ServiceNode,
+  preview: PreviewNode,
+}
 
-const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set(['rect', 'circle', 'table'])
+const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set([
+  'rect',
+  'circle',
+  'table',
+  'class',
+  'service',
+])
 
 const WIRE_SNAP_RADIUS = 140
 
@@ -76,6 +90,8 @@ const TOOL_HINT: Record<PlaceableTool, string> = {
   rect: 'Drag on the canvas to draw a rectangle',
   circle: 'Drag on the canvas to draw a circle',
   table: 'Drag on the canvas to draw a table',
+  class: 'Drag on the canvas to draw a class',
+  service: 'Drag on the canvas to draw a service',
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -329,6 +345,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
+      if ((event.target as HTMLElement | null)?.closest?.('[data-subflow]')) return
       if (event.ctrlKey || event.metaKey) {
         if (isEditableTarget(event.target)) return
         const k = event.key.toLowerCase()
@@ -367,6 +384,8 @@ function CanvasInner({ layer }: { layer: Layer }) {
         r: 'rect',
         c: 'circle',
         t: 'table',
+        k: 'class',
+        s: 'service',
         w: 'wire',
       }
       const next = toolByKey[key]

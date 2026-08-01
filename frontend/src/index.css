@@ -964,3 +964,394 @@ button:disabled {
   font-size: 12px;
   background: #26272e;
 }
+
+/* ---- Class node ---- */
+
+.class-node {
+  display: flex;
+  flex-direction: column;
+  background: #1f2127;
+  border: 1px solid #4a67a8;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-width: 260px;
+  min-height: 140px;
+  font-size: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.class-node--editing {
+  border-color: #e8c14b;
+}
+
+.class-node--ghost {
+  opacity: 0.55;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.class-node__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #2a3350, #242c45);
+  border-bottom: 1px solid #4a67a8;
+  flex: 0 0 auto;
+}
+
+.class-node__name {
+  font-weight: 700;
+  color: #dfe6ff;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.class-node__badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #a8b8e8;
+  border: 1px solid #4a67a8;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.class-node__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  position: relative;
+}
+
+.class-node__section {
+  border-bottom: 1px solid #34363f;
+}
+
+.class-node__section:last-child {
+  border-bottom: none;
+}
+
+.class-node__section-title {
+  padding: 3px 8px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7d8291;
+  font-weight: 600;
+  background: #1a1c21;
+}
+
+.class-node__empty {
+  padding: 3px 10px;
+  color: #6a6d78;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.field-row:hover {
+  background: #242732;
+}
+
+.field-row__name {
+  color: #dfe6ff;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field-row__type {
+  color: #9fc6a8;
+  flex: 0 0 auto;
+}
+
+.method-row__wrap {
+  border-bottom: 1px solid #34363f;
+}
+
+.method-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.method-row:hover,
+.method-row--expanded {
+  background: #242732;
+}
+
+.method-row__sig {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #dfe6ff;
+}
+
+.method-row__chevron {
+  color: #8a8b93;
+  font-size: 10px;
+  flex: 0 0 auto;
+}
+
+.method-row__flow {
+  position: relative;
+  height: 180px;
+  border-top: 1px dashed #3d4048;
+  background: #1a1c21;
+}
+
+/* ---- Class node: edit mode ---- */
+
+.class-edit {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #1f2127;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.class-edit__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8c14b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.class-edit__section {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7d8291;
+  margin-top: 4px;
+}
+
+.class-edit__name,
+.class-edit__input {
+  background: #16171b;
+  color: #e6e6e6;
+  border: 1px solid #34363f;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.class-edit__name {
+  font-weight: 600;
+}
+
+.class-edit__row {
+  display: grid;
+  gap: 4px;
+  align-items: center;
+}
+
+.class-edit__row--field {
+  grid-template-columns: 84px 1fr 1fr;
+}
+
+.class-edit__row--method {
+  grid-template-columns: 84px 1fr 1.4fr 1fr auto;
+}
+
+.class-edit__select {
+  background: #16171b;
+  color: #e6e6e6;
+  border: 1px solid #34363f;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.class-edit__del {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: transparent;
+  border-color: transparent;
+  color: #9a9ba3;
+}
+
+.class-edit__del:hover {
+  color: #e06c6c;
+  background: #3a3033;
+}
+
+.class-edit__add {
+  font-size: 11px;
+  padding: 3px;
+  border-style: dashed;
+}
+
+.class-edit__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.class-edit__actions button {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+/* ---- Service node ---- */
+
+.service-node {
+  display: flex;
+  flex-direction: column;
+  background: #1f2127;
+  border: 1px solid #4a67a8;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-width: 320px;
+  min-height: 200px;
+  font-size: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.service-node--editing {
+  border-color: #e8c14b;
+}
+
+.service-node--ghost {
+  opacity: 0.55;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.service-node__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #2c3a5e, #242c45);
+  border-bottom: 1px solid #4a67a8;
+  flex: 0 0 auto;
+}
+
+.service-node__name {
+  font-weight: 700;
+  color: #dfe6ff;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.service-node__badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #8fd0b8;
+  border: 1px solid #3f6a5c;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.service-node__toggle {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  color: #a9bce8;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.service-node__body {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.service-node__summary {
+  padding: 10px;
+  color: #8a8b93;
+  font-size: 11px;
+}
+
+/* ---- Service node: edit mode ---- */
+
+.service-edit {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #1f2127;
+}
+
+.service-edit__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8c14b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.service-edit__name {
+  background: #16171b;
+  color: #e6e6e6;
+  border: 1px solid #34363f;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.service-edit__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.service-edit__actions button {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+/* ---- Nested sub-flows (agent B's NestedFlow sits inside these) ---- */
+
+.subflow--method,
+.subflow--service {
+  position: absolute;
+  inset: 0;
+}
+
+.react-flow__node.selected .class-node,
+.react-flow__node.selected .service-node {
+  box-shadow: 0 0 0 1.5px #7a8bff, 0 6px 24px rgba(0, 0, 0, 0.55);
+}

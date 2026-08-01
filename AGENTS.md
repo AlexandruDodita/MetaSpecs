@@ -34,6 +34,19 @@ agent-execution loop (MVP stops at tasks.json).
   `src/components/ShapeNode.tsx` generic shapes — rect (header + item list) and
   circle — both with edit mode (dropdowns/textarea, save/cancel/outside-click);
   `src/components/PreviewNode.tsx` dashed drag preview;
+  `src/components/ClassNode.tsx` class object (fields + methods rows with
+  visibility badges, TS-highlighted signatures; click a method to expand a
+  nested sub-flow of logic nodes; edit form for label/fields/methods),
+  `src/components/ServiceNode.tsx` service/controller container (expand to a
+  nested sub-flow holding class nodes), `src/components/LogicNode.tsx` logic
+  flow nodes (`start|end|step|branch|call`, inline label edit),
+  `src/components/NestedFlow.tsx` generic nested `<ReactFlow>` mini-canvas
+  (controlled, debounced writes, context menus, `NestedFlowContext` for inner
+  node edits), `src/components/Highlighted.tsx` TS-like token highlighting +
+  `VisibilityBadge` (from `src/highlight.ts` tokenizer; styles in
+  `src/logic.css`); node types are `table|shape|class|service|logic|preview`,
+  tools `select|rect|circle|table|class|service|wire` (class: backend+frontend
+  layers, service: backend only);
   `src/components/ContextMenu.tsx` + `src/menu/` (OOP menu model:
   `MenuAction`/`MenuSubmenu`/`MenuSeparator`, builders per context in
   `builders.ts`); `src/components/Toolbar.tsx` left mini sidebar reusing the
@@ -138,14 +151,29 @@ Stored graph JSON is serializable React Flow v12 state:
   `applyNodeChanges`/`applyEdgeChanges`; cast changes/nodes/edges to React Flow
   `NodeChange[]`/`Node[]` at that boundary (`as unknown as ...` where TS
   disagrees).
-- `nodeTypes = { table: TableNode, shape: ShapeNode, preview: PreviewNode }`;
+- `nodeTypes = { table: TableNode, shape: ShapeNode, class: ClassNode,
+  service: ServiceNode, preview: PreviewNode }`;
   the custom node reads `activeLayer` from the store so its actions target
   the right layer.
+- Nested sub-flows: `ClassNode` methods and `ServiceNode` bodies render a
+  second `<ReactFlow>` via `NestedFlow`. Nested graphs live in node data
+  (`Method.flow` / `ServiceNodeData.flow`), written back through
+  `saveMethodFlow`/`saveServiceFlow` (store) or `NestedFlowContext` for
+  inner-node edits; `NestedFlow` debounces `onChange` 400ms and flushes
+  before opening its context menus (otherwise a pending debounce can
+  overwrite a menu commit). Expansion is UI-only store state
+  (`expanded`/`expandedMethod`), never persisted. The wrapper div carries
+  `data-subflow` — GraphCanvas's global hotkeys bail out when the pointer is
+  inside one.
+- `ClassNode`/`ServiceNode`/`LogicNode` read their data from React Flow's
+  `data` prop (they render inside sub-flows where store lookups would miss);
+  top-level edit forms still use the store draft machinery.
 - Table edit state lives in the store (`editingNodeId`/`editDraft`), NOT in
   node data — the stored graph JSON must stay serializable.
 - Clicks inside the edit form must `stopPropagation()` or React Flow's
   `onNodeClick` will commit+close the form mid-edit.
-- Tool hotkeys V/R/C/T/W are bound in `GraphCanvas` (ignored while typing in
-  inputs); edges get labels via right-click → "Label edge…".
+- Tool hotkeys V/R/C/T/K/S/W are bound in `GraphCanvas` (ignored while typing
+  in inputs and inside `[data-subflow]`); edges get labels via right-click →
+  "Label edge…".
 - `<ReactFlow colorMode="dark">` handles controls/minimap theming; extra dark
   overrides live in `src/index.css`.
