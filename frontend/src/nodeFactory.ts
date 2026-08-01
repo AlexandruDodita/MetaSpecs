@@ -2,7 +2,7 @@ import type {
   AppNode,
   ClassNodeData,
   LogicKind,
-  LogicNodeData,
+  LogicStep,
   ServiceNodeData,
   ShapeKind,
   ShapeNodeData,
@@ -52,19 +52,12 @@ export function makeClassData(label = 'class'): ClassNodeData {
 }
 
 export function makeServiceData(label = 'service'): ServiceNodeData {
-  return { label, flow: { nodes: [], edges: [] } }
+  return { label }
 }
 
-/** A logic node for nested method sub-flows (never lives in a top-level graph). */
-export function makeLogicNode(kind: LogicKind, x: number, y: number): AppNode {
-  const data: LogicNodeData = { kind, label: kind }
-  return {
-    id: makeNodeId(),
-    type: 'logic',
-    position: { x, y },
-    style: { width: 120, height: 60 },
-    data,
-  }
+/** One row in a method's logic tree (start/end are implicit). */
+export function makeLogicStep(kind: LogicKind, label = ''): LogicStep {
+  return { id: uid('s'), kind, label }
 }
 
 /** Build a node placed at (x, y) with an explicit size. */

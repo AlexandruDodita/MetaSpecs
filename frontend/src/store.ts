@@ -9,8 +9,8 @@ import type {
   Field,
   Layer,
   LayerGraph,
+  LogicStep,
   Method,
-  NestedFlow,
   ProjectInfo,
   ShapeKind,
 } from './types'
@@ -35,13 +35,6 @@ export interface Drawing {
 const EMPTY_GRAPH: LayerGraph = { nodes: [], edges: [] }
 
 const HISTORY_LIMIT = 50
-
-function deepCopyFlow(flow: NestedFlow): NestedFlow {
-  return {
-    nodes: flow.nodes.map((n) => ({ ...n, data: { ...(n.data as object) } })),
-    edges: flow.edges.map((e) => ({ ...e })),
-  }
-}
 
 function pushHistory(state: GraphState, layer: Layer) {
   return {
@@ -87,8 +80,7 @@ interface GraphState {
   expandedMethod: Record<string, string | null>
   toggleExpanded: (nodeId: string) => void
   setExpandedMethod: (nodeId: string, methodId: string | null) => void
-  saveMethodFlow: (layer: Layer, classNodeId: string, methodId: string, flow: NestedFlow) => void
-  saveServiceFlow: (layer: Layer, serviceNodeId: string, flow: NestedFlow) => void
+  updateMethodSteps: (layer: Layer, classNodeId: string, methodId: string, steps: LogicStep[]) => void
   undo: (layer: Layer) => void
   redo: (layer: Layer) => void
   setProject: (project: ProjectInfo | null) => void
@@ -462,22 +454,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       ...pushHistory(state, layer),
     })),
 
-  saveMethodFlow: (layer, classNodeId, methodId, flow) => {
+  updateMethodSteps: (layer, classNodeId, methodId, steps) => {
     const state = get()
     const node = state.graphs[layer].nodes.find((n) => n.id === classNodeId)
     if (!node || node.type !== 'class') return
     const data = node.data as ClassNodeData
     const methods = (data.methods ?? []).map((m) =>
-      m.id === methodId ? { ...m, flow: deepCopyFlow(flow) } : m,
+      m.id === methodId
+        ? { ...m, steps: steps.map((s) => ({ ...s })) }
+        : m,
     )
     get().updateNodeData(layer, classNodeId, { methods })
-  },
-
-  saveServiceFlow: (layer, serviceNodeId, flow) => {
-    const state = get()
-    const node = state.graphs[layer].nodes.find((n) => n.id === serviceNodeId)
-    if (!node || node.type !== 'service') return
-    get().updateNodeData(layer, serviceNodeId, { flow: deepCopyFlow(flow) })
   },
 
   updateEdgeLabel: (layer, edgeId, label) =>
@@ -546,7 +533,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       columns: (data.columns ?? []).map((c) => ({ ...c })),
       items: [...(data.items ?? [])],
       fields: (data.fields ?? []).map((f) => ({ ...f })),
-      methods: (data.methods ?? []).map((m) => ({ ...m, flow: deepCopyFlow(m.flow) })),
+      methods: (data.methods ?? []).map((m) => ({
+        ...m,
+        steps: (m.steps ?? []).map((s) => ({ ...s })),
+      })),
     }
     set({
       editingNodeId: nodeId,

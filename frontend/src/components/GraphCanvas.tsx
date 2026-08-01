@@ -10,7 +10,7 @@ import {
   Position,
 } from '@xyflow/react'
 import { ReactFlowProvider, useReactFlow, useStoreApi } from '@xyflow/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   Node,
   Edge,
@@ -31,7 +31,7 @@ import ShapeNode from './ShapeNode'
 import ClassNode from './ClassNode'
 import ServiceNode from './ServiceNode'
 import PreviewNode from './PreviewNode'
-import { MIN_SIZE, makeNode, type PlaceableKind } from '../nodeFactory'
+import { makeNode, type PlaceableKind } from '../nodeFactory'
 import { closestSides, nodeSizeOf, pointNode, sideAnchor, type Side } from '../geometry'
 
 const nodeTypes = {
@@ -106,6 +106,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 function CanvasInner({ layer }: { layer: Layer }) {
   const nodes = useLayerNodes(layer)
   const edges = useLayerEdges(layer)
+  const expanded = useGraphStore((s) => s.expanded)
   const onNodesChange = useGraphStore((s) => s.onNodesChange)
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange)
   const onConnect = useGraphStore((s) => s.onConnect)
@@ -129,6 +130,34 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const storeApi = useStoreApi()
   const loadSeq = useGraphStore((s) => s.loadSeq)
   const fittedKeyRef = useRef('')
+
+  // Tree hiding: a class wired to a service is hidden from the canvas while
+  // every connected service is collapsed (it lives inside the service tree
+  // instead). Edges touching hidden nodes are hidden too.
+  const { renderNodes, renderEdges } = useMemo(() => {
+    const serviceIds = new Set(
+      nodes.filter((n) => n.type === 'service').map((n) => n.id),
+    )
+    const hidden = new Set<string>()
+    for (const n of nodes) {
+      if (n.type !== 'class') continue
+      const connectedServices = edges
+        .filter((e) => e.source === n.id || e.target === n.id)
+        .map((e) => (e.source === n.id ? e.target : e.source))
+        .filter((id) => serviceIds.has(id))
+      if (
+        connectedServices.length > 0 &&
+        !connectedServices.some((id) => expanded[id] === true)
+      ) {
+        hidden.add(n.id)
+      }
+    }
+    const renderNodes = nodes.filter((n) => !hidden.has(n.id))
+    const renderEdges = edges.filter(
+      (e) => !hidden.has(e.source) && !hidden.has(e.target),
+    )
+    return { renderNodes, renderEdges }
+  }, [nodes, edges, expanded])
 
   useEffect(() => {
     const fittedKey = `${layer}:${loadSeq}`
@@ -222,7 +251,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
       commitEditing(layer)
       if (tool !== 'wire') return
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
-      const targetId = nearestSnapNode(nodes, position, wireSource)
+      const targetId = nearestSnapNode(renderNodes, position, wireSource)
       if (!wireSource) {
         if (targetId) setWireSource(targetId)
         return
@@ -233,15 +262,17 @@ function CanvasInner({ layer }: { layer: Layer }) {
         setWireSource(null)
       }
     },
-    [closeMenu, commitEditing, layer, tool, wireSource, nodes, screenToFlowPosition, setWireSource, finishWiring],
+    [closeMenu, commitEditing, layer, tool, wireSource, renderNodes, screenToFlowPosition, setWireSource, finishWiring],
   )
 
   const buildDrawNode = useCallback(
     (drawing: ReturnType<typeof useGraphStore.getState>['drawing']) => {
       if (!drawing) return null
       const kind: PlaceableKind = drawing.kind
-      const width = Math.max(drawing.w, MIN_SIZE[kind].width)
-      const height = Math.max(drawing.h, MIN_SIZE[kind].height)
+      // Preview tracks the raw drag rect (clamping happens on drop in
+      // makeNode), so class/service ghosts don't jump to their min size.
+      const width = Math.max(drawing.w, 1)
+      const height = Math.max(drawing.h, 1)
       const previewNode: AppNode = {
         id: '__draw__',
         type: 'preview',
@@ -345,7 +376,6 @@ function CanvasInner({ layer }: { layer: Layer }) {
 
   const handleKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
-      if ((event.target as HTMLElement | null)?.closest?.('[data-subflow]')) return
       if (event.ctrlKey || event.metaKey) {
         if (isEditableTarget(event.target)) return
         const k = event.key.toLowerCase()
@@ -399,16 +429,16 @@ function CanvasInner({ layer }: { layer: Layer }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  const renderNodes = (
-    drawNode ? [...nodes, drawNode] : nodes
+  const renderNodesWithPreview = (
+    drawNode ? [...renderNodes, drawNode] : renderNodes
   ) as unknown as Node[]
 
   let wireOverlay: ReactNode = null
   if (tool === 'wire' && wireSource && wirePointer) {
-    const sourceNode = nodes.find((n) => n.id === wireSource)
+    const sourceNode = renderNodes.find((n) => n.id === wireSource)
     if (sourceNode) {
-      const snapId = nearestSnapNode(nodes, wirePointer, wireSource)
-      const snapNode = snapId ? (nodes.find((n) => n.id === snapId) ?? null) : null
+      const snapId = nearestSnapNode(renderNodes, wirePointer, wireSource)
+      const snapNode = snapId ? (renderNodes.find((n) => n.id === snapId) ?? null) : null
       const farEnd = snapNode ?? pointNode(wirePointer)
       const { sourceSide, targetSide } = closestSides(sourceNode, farEnd)
       const sourceEnd = sideAnchor(sourceNode, sourceSide)
@@ -464,8 +494,8 @@ function CanvasInner({ layer }: { layer: Layer }) {
   return (
     <div className="canvas">
       <ReactFlow
-        nodes={renderNodes}
-        edges={edges as unknown as Edge[]}
+        nodes={renderNodesWithPreview}
+        edges={renderEdges as unknown as Edge[]}
         nodeTypes={nodeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}

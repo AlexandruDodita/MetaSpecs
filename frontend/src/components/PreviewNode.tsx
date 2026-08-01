@@ -44,6 +44,13 @@ export default function PreviewNode({ data }: NodeProps) {
               <span className="field-row__name">id</span>
             </div>
           </div>
+          <div className="class-node__section">
+            <div className="class-node__section-title">METHODS</div>
+            <div className="method-row">
+              <span className="vis--public">+</span>
+              <span className="method-row__sig">getUser(id: uuid): User</span>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -56,7 +63,9 @@ export default function PreviewNode({ data }: NodeProps) {
           <span className="service-node__name">service</span>
           <span className="service-node__badge">SERVICE</span>
         </div>
-        <div className="service-node__body" />
+        <div className="service-node__members">
+          <div className="service-node__empty">classes wired here</div>
+        </div>
       </div>
     )
   }

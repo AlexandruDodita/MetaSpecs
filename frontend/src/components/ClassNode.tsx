@@ -2,14 +2,10 @@ import { useState } from 'react'
 import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
-import type { ClassNodeData, Field, Method, NestedFlow as NestedFlowGraph } from '../types'
+import type { ClassNodeData, Field, LogicKind, LogicStep, Method } from '../types'
 import { useGraphStore } from '../store'
-import { uid } from '../nodeFactory'
-import { NestedFlow, useNestedFlowContext } from './NestedFlow'
+import { makeLogicStep, uid } from '../nodeFactory'
 import { Highlighted, VisibilityBadge } from './Highlighted'
-import LogicNode from './LogicNode'
-import { buildMethodFlowPaneMenu } from '../menu/builders'
-import { MenuAction } from '../menu/types'
 import NodeSideHandles from './NodeSideHandles'
 
 const VISIBILITIES: readonly ['public', 'private', 'protected'] = [
@@ -18,18 +14,9 @@ const VISIBILITIES: readonly ['public', 'private', 'protected'] = [
   'protected',
 ]
 
-const EMPTY_FLOW: NestedFlowGraph = { nodes: [], edges: [] }
+const LOGIC_KINDS: readonly LogicKind[] = ['step', 'branch', 'call']
 
-function deepCopyFlow(flow: NestedFlowGraph): NestedFlowGraph {
-  return {
-    nodes: flow.nodes.map((n) => ({ ...n, data: { ...(n.data as object) } })),
-    edges: flow.edges.map((e) => ({ ...e })),
-  }
-}
-
-function deepCopyMethod(m: Method): Method {
-  return { ...m, flow: deepCopyFlow(m.flow) }
-}
+const LOGIC_BADGE: Record<LogicKind, string> = { step: '•', branch: '◇', call: '⇢' }
 
 export interface ClassEditState {
   label: string
@@ -77,7 +64,7 @@ function ClassEditForm({
           visibility: 'private',
           returnType: '',
           params: '',
-          flow: EMPTY_FLOW,
+          steps: [],
         },
       ],
     })
@@ -178,33 +165,171 @@ function ClassEditForm({
   )
 }
 
+function StepRow({
+  step,
+  editing,
+  onStartEdit,
+  onCommitLabel,
+  onSetKind,
+  onMove,
+  onDelete,
+}: {
+  step: LogicStep
+  editing: boolean
+  onStartEdit: () => void
+  onCommitLabel: (label: string) => void
+  onSetKind: (kind: LogicKind) => void
+  onMove: (dir: -1 | 1) => void
+  onDelete: () => void
+}) {
+  const [draft, setDraft] = useState(step.label)
+
+  return (
+    <div className="step-row" onClick={(e) => e.stopPropagation()}>
+      {editing ? (
+        <input
+          className="step-row__edit"
+          value={draft}
+          autoFocus
+          placeholder="what happens here?"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => onCommitLabel(draft)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter' && !e.shiftKey) {
+              onCommitLabel(draft)
+            } else if (e.key === 'Escape') {
+              setDraft(step.label)
+              onCommitLabel(step.label)
+            }
+          }}
+        />
+      ) : (
+        <span
+          className="step-row__label"
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            onStartEdit()
+          }}
+        >
+          <Highlighted text={step.label || '(empty step)'} />
+        </span>
+      )}
+      <select
+        className="step-row__kind"
+        value={step.kind}
+        title="step kind"
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onSetKind(e.target.value as LogicKind)}
+      >
+        {LOGIC_KINDS.map((k) => (
+          <option key={k} value={k}>
+            {k}
+          </option>
+        ))}
+      </select>
+      <span className="step-row__badge" title={step.kind}>
+        {LOGIC_BADGE[step.kind]}
+      </span>
+      <span className="step-row__ops">
+        <button className="step-row__op" title="move up" onClick={() => onMove(-1)}>
+          ↑
+        </button>
+        <button className="step-row__op" title="move down" onClick={() => onMove(1)}>
+          ↓
+        </button>
+        <button className="step-row__op step-row__op--del" title="delete step" onClick={onDelete}>
+          ×
+        </button>
+      </span>
+    </div>
+  )
+}
+
+function MethodSteps({ id, method }: { id: string; method: Method }) {
+  const activeLayer = useGraphStore((s) => s.activeLayer)
+  const updateMethodSteps = useGraphStore((s) => s.updateMethodSteps)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const steps = method.steps ?? []
+
+  const commit = (next: LogicStep[]) => updateMethodSteps(activeLayer, id, method.id, next)
+
+  const addStep = () => {
+    const step = makeLogicStep('step')
+    commit([...steps, step])
+    setEditingId(step.id)
+  }
+
+  const setLabel = (stepId: string, label: string) => {
+    commit(steps.map((s) => (s.id === stepId ? { ...s, label } : s)))
+    setEditingId(null)
+  }
+
+  const setKind = (stepId: string, kind: LogicKind) => {
+    commit(steps.map((s) => (s.id === stepId ? { ...s, kind } : s)))
+  }
+
+  const move = (index: number, dir: -1 | 1) => {
+    const next = [...steps]
+    const target = index + dir
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    commit(next)
+  }
+
+  const remove = (index: number) => {
+    commit(steps.filter((_, i) => i !== index))
+    setEditingId(null)
+  }
+
+  return (
+    <div className="method-steps">
+      {steps.length === 0 && <div className="method-steps__empty">no steps yet</div>}
+      {steps.map((step, i) => (
+        <StepRow
+          key={step.id}
+          step={step}
+          editing={editingId === step.id}
+          onStartEdit={() => setEditingId(step.id)}
+          onCommitLabel={(label) => setLabel(step.id, label)}
+          onSetKind={(kind) => setKind(step.id, kind)}
+          onMove={(dir) => move(i, dir)}
+          onDelete={() => remove(i)}
+        />
+      ))}
+      <button className="method-steps__add" onClick={addStep}>
+        + step
+      </button>
+    </div>
+  )
+}
+
 function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
   const expandedMethod = useGraphStore((s) => s.expandedMethod)
   const setExpandedMethod = useGraphStore((s) => s.setExpandedMethod)
-  const activeLayer = useGraphStore((s) => s.activeLayer)
-  const saveMethodFlow = useGraphStore((s) => s.saveMethodFlow)
-  const nested = useNestedFlowContext()
+  const classExpanded = useGraphStore((s) => s.expanded[id]) !== false
+  const toggleExpanded = useGraphStore((s) => s.toggleExpanded)
 
   const label = data.label ?? 'class'
   const fields = data.fields ?? []
   const methods = data.methods ?? []
-
-  const handleMethodFlowChange = (methodId: string, graph: NestedFlowGraph) => {
-    const nextMethods = methods.map((m) =>
-      m.id === methodId ? { ...m, flow: deepCopyFlow(graph) } : m,
-    )
-    if (nested) {
-      nested.updateNodeData(id, { methods: nextMethods })
-    } else {
-      saveMethodFlow(activeLayer, id, methodId, graph)
-    }
-  }
 
   return (
     <>
       <div className="class-node__header">
         <span className="class-node__name">{label}</span>
         <span className="class-node__badge">CLASS</span>
+        <button
+          className="class-node__toggle"
+          title={classExpanded ? 'Collapse class (hide methods)' : 'Expand class'}
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleExpanded(id)
+          }}
+        >
+          {classExpanded ? '▾' : '▸'}
+        </button>
       </div>
       <div className="class-node__body">
         <div className="class-node__section">
@@ -218,71 +343,41 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
             </div>
           ))}
         </div>
-        <div className="class-node__section">
-          <div className="class-node__section-title">METHODS</div>
-          {methods.length === 0 && <div className="class-node__empty">no methods</div>}
-          {methods.map((m) => {
-            const isExpanded = expandedMethod[id] === m.id
-            const flow = m.flow ?? EMPTY_FLOW
-            return (
-              <div key={m.id} className="method-row__wrap">
-                <div
-                  className={`method-row${isExpanded ? ' method-row--expanded' : ''}`}
-                  onClick={() => setExpandedMethod(id, isExpanded ? null : m.id)}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  <VisibilityBadge visibility={m.visibility} />
-                  <Highlighted
-                    text={`${m.name}(${m.params}): ${m.returnType}`}
-                    className="method-row__sig"
-                  />
-                  <span className="method-row__chevron">{isExpanded ? '▾' : '▸'}</span>
-                </div>
-                {isExpanded && (
-                  <div className="method-row__flow">
-                    <NestedFlow
-                      nodes={flow.nodes}
-                      edges={flow.edges}
-                      nodeTypes={{ logic: LogicNode }}
-                      className="subflow subflow--method"
-                      onChange={(g) => handleMethodFlowChange(m.id, g)}
-                      onPaneContextMenu={(position, graph) =>
-                        buildMethodFlowPaneMenu({
-                          layer: activeLayer,
-                          x: position.x,
-                          y: position.y,
-                          graph,
-                          onCommit: (g) => handleMethodFlowChange(m.id, g),
-                        })
-                      }
-                      onNodeContextMenu={(node, graph) => {
-                        const keep = graph.nodes.filter((n) => n.id !== node.id)
-                        const edges = graph.edges.filter(
-                          (e) => e.source !== node.id && e.target !== node.id,
-                        )
-                        return [
-                          new MenuAction(
-                            'Delete',
-                            () => handleMethodFlowChange(m.id, { nodes: keep, edges }),
-                            '🗑',
-                            true,
-                          ),
-                        ]
-                      }}
+        {classExpanded && (
+          <div className="class-node__section">
+            <div className="class-node__section-title">METHODS</div>
+            {methods.length === 0 && <div className="class-node__empty">no methods</div>}
+            {methods.map((m) => {
+              const isExpanded = expandedMethod[id] === m.id
+              return (
+                <div key={m.id} className="method-row__wrap">
+                  <div
+                    className={`method-row${isExpanded ? ' method-row--expanded' : ''}`}
+                    onClick={() => setExpandedMethod(id, isExpanded ? null : m.id)}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                  >
+                    <VisibilityBadge visibility={m.visibility} />
+                    <Highlighted
+                      text={`${m.name}(${m.params}): ${m.returnType}`}
+                      className="method-row__sig"
                     />
+                    <span className="method-row__chevron">{isExpanded ? '▾' : '▸'}</span>
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                  {isExpanded && <MethodSteps id={id} method={m} />}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {!classExpanded && methods.length > 0 && (
+          <div className="class-node__hidden">methods hidden — expand class</div>
+        )}
       </div>
     </>
   )
 }
 
 function ClassNode({ id, data }: NodeProps<Node<ClassNodeData, 'class'>>) {
-  const nested = useNestedFlowContext()
   const activeLayer = useGraphStore((s) => s.activeLayer)
   const editingNodeId = useGraphStore((s) => s.editingNodeId)
   const startEditing = useGraphStore((s) => s.startEditing)
@@ -290,57 +385,14 @@ function ClassNode({ id, data }: NodeProps<Node<ClassNodeData, 'class'>>) {
   const updateNodeSize = useGraphStore((s) => s.updateNodeSize)
   const editDraft = useGraphStore((s) => s.editDraft)
 
-  const [localDraft, setLocalDraft] = useState<ClassEditState | null>(null)
-
   const nodeData = data ?? { label: 'class', fields: [], methods: [] }
-  const isEditing = nested ? localDraft !== null : editingNodeId === id
+  const isEditing = editingNodeId === id
 
-  const openEdit = () => {
-    if (nested) {
-      setLocalDraft({
-        label: nodeData.label,
-        fields: nodeData.fields.map((f) => ({ ...f })),
-        methods: nodeData.methods.map(deepCopyMethod),
-      })
-    } else {
-      startEditing(activeLayer, id)
-    }
+  const draft: ClassEditState = {
+    label: editDraft?.label ?? nodeData.label,
+    fields: editDraft?.fields ?? nodeData.fields,
+    methods: editDraft?.methods ?? nodeData.methods,
   }
-
-  const saveEdit = () => {
-    if (nested) {
-      if (localDraft) {
-        nested.updateNodeData(id, {
-          label: localDraft.label,
-          fields: localDraft.fields,
-          methods: localDraft.methods,
-        })
-      }
-      setLocalDraft(null)
-    } else {
-      commitEditing(activeLayer)
-    }
-  }
-
-  const cancelEdit = () => {
-    if (nested) {
-      setLocalDraft(null)
-    } else {
-      useGraphStore.getState().cancelEditing()
-    }
-  }
-
-  const draft: ClassEditState = nested
-    ? localDraft ?? {
-        label: nodeData.label,
-        fields: nodeData.fields,
-        methods: nodeData.methods,
-      }
-    : {
-        label: editDraft?.label ?? nodeData.label,
-        fields: editDraft?.fields ?? nodeData.fields,
-        methods: editDraft?.methods ?? nodeData.methods,
-      }
 
   return (
     <div
@@ -348,33 +400,22 @@ function ClassNode({ id, data }: NodeProps<Node<ClassNodeData, 'class'>>) {
       onDoubleClick={(e) => {
         if (isEditing) return
         e.stopPropagation()
-        openEdit()
+        startEditing(activeLayer, id)
       }}
     >
       <NodeResizer
         minWidth={260}
         minHeight={140}
         color="#7a8bff"
-        onResizeEnd={
-          nested
-            ? undefined
-            : (_event, params) =>
-                updateNodeSize(activeLayer, id, params.width, params.height)
-        }
+        onResizeEnd={(_event, params) => updateNodeSize(activeLayer, id, params.width, params.height)}
       />
       <NodeSideHandles isConnectable={!isEditing} />
       {isEditing ? (
         <ClassEditForm
           draft={draft}
-          onChange={(patch) => {
-            if (nested) {
-              setLocalDraft((prev) => (prev ? { ...prev, ...patch } : prev))
-            } else {
-              useGraphStore.getState().updateEditDraft(patch)
-            }
-          }}
-          onSave={saveEdit}
-          onCancel={cancelEdit}
+          onChange={(patch) => useGraphStore.getState().updateEditDraft(patch)}
+          onSave={() => commitEditing(activeLayer)}
+          onCancel={() => useGraphStore.getState().cancelEditing()}
         />
       ) : (
         <ClassView data={nodeData} id={id} />

@@ -2,13 +2,13 @@ import type { Edge, Node } from '@xyflow/react'
 
 export type Layer = 'backend' | 'db' | 'frontend'
 
-export type NodeType = 'table' | 'shape' | 'class' | 'service' | 'logic' | 'preview'
+export type NodeType = 'table' | 'shape' | 'class' | 'service' | 'preview'
 
 export type ShapeKind = 'rect' | 'circle'
 
 export type Visibility = 'public' | 'private' | 'protected'
 
-export type LogicKind = 'start' | 'end' | 'step' | 'branch' | 'call'
+export type LogicKind = 'step' | 'branch' | 'call'
 
 export interface Column {
   name: string
@@ -35,9 +35,11 @@ export interface Field {
   type: string
 }
 
-export interface NestedFlow {
-  nodes: AppNode[]
-  edges: AppEdge[]
+/** One row in a method's logic tree (start/end are implicit). */
+export interface LogicStep {
+  id: string
+  kind: LogicKind
+  label: string
 }
 
 export interface Method {
@@ -46,7 +48,7 @@ export interface Method {
   visibility: Visibility
   returnType: string
   params: string
-  flow: NestedFlow
+  steps: LogicStep[]
 }
 
 export interface ClassNodeData {
@@ -57,13 +59,6 @@ export interface ClassNodeData {
 }
 
 export interface ServiceNodeData {
-  label: string
-  flow: NestedFlow
-  [key: string]: unknown
-}
-
-export interface LogicNodeData {
-  kind: LogicKind
   label: string
   [key: string]: unknown
 }
@@ -78,7 +73,6 @@ export type GraphNodeData =
   | ShapeNodeData
   | ClassNodeData
   | ServiceNodeData
-  | LogicNodeData
   | PreviewNodeData
   | Record<string, never>
 

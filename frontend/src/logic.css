@@ -264,3 +264,211 @@
 .subflow .react-flow__edge-path {
   stroke-width: 1.5;
 }
+
+/* ---- Logic step rows (method tree) ---- */
+
+.method-steps {
+  background: #1a1c21;
+  border-top: 1px dashed #3d4048;
+  padding: 2px 0 6px;
+}
+
+.method-steps__empty {
+  padding: 4px 12px;
+  font-size: 10px;
+  color: #8a93a6;
+  font-style: italic;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 14px;
+  font-size: 11px;
+}
+
+.step-row:hover {
+  background: rgba(122, 139, 255, 0.07);
+}
+
+.step-row__badge {
+  width: 14px;
+  text-align: center;
+  color: #7a8bff;
+  font-size: 12px;
+}
+
+.step-row__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.step-row__edit {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: #1f2127;
+  color: #dfe6ff;
+  border: 1px solid #7a8bff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
+.step-row__kind {
+  appearance: none;
+  -webkit-appearance: none;
+  background: #26292f;
+  color: #8a93a6;
+  border: 1px solid #34363f;
+  border-radius: 4px;
+  font-size: 9px;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+
+.step-row__kind:hover {
+  color: #dfe6ff;
+  border-color: #7a8bff;
+}
+
+.step-row__ops {
+  display: none;
+  gap: 2px;
+}
+
+.step-row:hover .step-row__ops {
+  display: flex;
+}
+
+.step-row__op {
+  background: transparent;
+  border: none;
+  color: #8a93a6;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.step-row__op:hover {
+  background: #30323b;
+  color: #dfe6ff;
+}
+
+.step-row__op--del:hover {
+  color: #e06c75;
+}
+
+.method-steps__add {
+  margin: 3px 10px 0;
+  background: transparent;
+  border: 1px dashed #34363f;
+  color: #8a93a6;
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.method-steps__add:hover {
+  border-color: #7a8bff;
+  color: #dfe6ff;
+}
+
+/* ---- Service tree ---- */
+
+.service-node__tree {
+  padding: 4px 0 6px;
+  font-size: 11px;
+}
+
+.service-node__empty {
+  padding: 8px 12px;
+  font-size: 10px;
+  color: #8a93a6;
+  font-style: italic;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-row:hover {
+  background: rgba(122, 139, 255, 0.07);
+}
+
+.tree-row__chevron {
+  width: 12px;
+  color: #8a93a6;
+  font-size: 10px;
+}
+
+.tree-row__name {
+  color: #dfe6ff;
+  font-weight: 600;
+}
+
+.tree-row__badge {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #a4b3ff;
+  background: rgba(122, 139, 255, 0.12);
+  border: 1px solid #7a8bff;
+  border-radius: 999px;
+  padding: 0 5px;
+  line-height: 1.5;
+}
+
+.tree-row__sig {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-row__count {
+  margin-left: auto;
+  font-size: 9px;
+  color: #5c6370;
+}
+
+.tree-row--method .tree-row__sig {
+  color: #dfe6ff;
+}
+
+.tree-row--step {
+  cursor: default;
+  color: #8a93a6;
+}
+
+.tree-row--step:hover {
+  background: transparent;
+}
+
+.tree-row__kind {
+  width: 12px;
+  text-align: center;
+  color: #7a8bff;
+}
+
+.tree-empty {
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #5c6370;
+  font-style: italic;
+}
