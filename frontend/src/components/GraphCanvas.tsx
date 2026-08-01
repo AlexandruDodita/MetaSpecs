@@ -324,7 +324,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
         colorMode="dark"
         deleteKeyCode={null}
         connectionRadius={24}
-        panOnDrag={tool === 'select' ? [1] : tool === 'wire'}
+        panOnDrag={tool === 'select' || tool === 'wire'}
         panOnScroll
         selectionOnDrag={tool === 'select'}
         snapToGrid

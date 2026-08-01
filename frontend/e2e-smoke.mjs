@@ -118,7 +118,11 @@ const clearActiveLayer = async () => {
   await page.locator('.toolbar__btn--danger').last().click()
   await page.waitForTimeout(200)
 }
-const saveAllBtn = () => page.locator('.header-actions button', { hasText: 'Save all' })
+// The header "Save all" button was removed in favour of an always-visible
+// `.save-status` readout ("Saving…" / "Unsaved changes" / "Saved" / "Save
+// failed"). Every check that used to assert on the button's enabled/disabled
+// state now reads this text instead.
+const readSaveStatus = async () => page.locator('.save-status').innerText().catch(() => '')
 
 // ---- 1: autosave persists to the backend without clicking Save ----
 await clickTab('Database')
@@ -134,8 +138,8 @@ check('autosave: server has 1 node for db layer', dbJson.nodes?.length === 1, `n
 // ---- 2: dirty indicator clears once autosave has landed ----
 const activeTabDots = await page.locator('.tab--active .tab__dot').count()
 check('dirty dot clears on active tab after autosave', activeTabDots === 0, `dots=${activeTabDots}`)
-const saveAllDisabled = await saveAllBtn().isDisabled()
-check('"Save all" button disabled once nothing is dirty', saveAllDisabled, `disabled=${saveAllDisabled}`)
+const statusAfterAutosave = await readSaveStatus()
+check('after autosave, nothing left to save: status reads "Saved"', statusAfterAutosave === 'Saved', `text="${statusAfterAutosave}"`)
 
 // ---- 3: dragging a node snaps its final position to the 10px grid ----
 const dragNode = page.locator('.react-flow__node').first()
@@ -156,17 +160,41 @@ check(
   `position=${JSON.stringify(draggedPos)}`,
 )
 
-// ---- 4: plain left-drag (no Shift) rubber-band selects on the select tool ----
+// ---- 4a: Shift+drag rubber-band box-selects on the select tool ----
+// Panning was reverted to plain left-drag; box-select now requires Shift.
 await clearActiveLayer()
 await addTableAt(300, 250)
 await addTableAt(650, 250)
+await page.keyboard.down('Shift')
+await page.mouse.move(150, 150)
+await page.mouse.down()
+await page.mouse.move(1390, 700, { steps: 12 })
+await page.mouse.up()
+await page.keyboard.up('Shift')
+await page.waitForTimeout(250)
+const shiftDragSelected = await page.locator('.react-flow__node.selected').count()
+check('Shift+drag box-selects both nodes', shiftDragSelected === 2, `selected=${shiftDragSelected}`)
+
+// ---- 4b: plain left-drag (no Shift) pans the viewport instead of selecting ----
+// 4a left both nodes selected; clear that first so this check starts from
+// "nothing selected" as specified. (750, 600) is clear of both nodes
+// (which span roughly x:300-910, y:250-400), the left toolbar, the
+// right-hand side panel (x>=1060), and the bottom-docked minimap/controls.
+await pane.click({ position: { x: 750, y: 600 } })
+await page.waitForTimeout(150)
+const viewportTransformBefore = await page.locator('.react-flow__viewport').evaluate((el) => el.style.transform)
 await page.mouse.move(150, 150)
 await page.mouse.down()
 await page.mouse.move(1390, 700, { steps: 12 })
 await page.mouse.up()
 await page.waitForTimeout(250)
-const plainDragSelected = await page.locator('.react-flow__node.selected').count()
-check('plain left-drag (no Shift) selects both nodes', plainDragSelected === 2, `selected=${plainDragSelected}`)
+const viewportTransformAfter = await page.locator('.react-flow__viewport').evaluate((el) => el.style.transform)
+const panSelectedCount = await page.locator('.react-flow__node.selected').count()
+check(
+  'plain left-drag pans instead of selecting',
+  viewportTransformAfter !== viewportTransformBefore && panSelectedCount === 0,
+  `before="${viewportTransformBefore}" after="${viewportTransformAfter}" selected=${panSelectedCount}`,
+)
 
 // ---- 5: duplicate places the copy beside the original, no overlap ----
 await clearActiveLayer()
@@ -409,16 +437,16 @@ for (const layer of ['backend', 'frontend']) {
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('.react-flow__pane')
 await page.waitForTimeout(1500)
-const saveAllDisabledAfterLoad = await saveAllBtn().isDisabled()
+const statusAfterLoad = await readSaveStatus()
 const tabDotCountAfterLoad = await page.locator('.tab__dot').count()
-check('loading the app does not dirty the graph: "Save all" stays disabled', saveAllDisabledAfterLoad, `disabled=${saveAllDisabledAfterLoad}`)
+check('loading does not dirty the graph: status reads "Saved"', statusAfterLoad === 'Saved', `text="${statusAfterLoad}"`)
 check('loading the app does not dirty the graph: no tab shows a dirty dot', tabDotCountAfterLoad === 0, `dots=${tabDotCountAfterLoad}`)
 
 await clickTab('Database')
 await page.locator('.react-flow__node').first().click()
 await page.waitForTimeout(1200)
-const saveAllDisabledAfterClick = await saveAllBtn().isDisabled()
-check('clicking a node does not dirty the graph: "Save all" stays disabled', saveAllDisabledAfterClick, `disabled=${saveAllDisabledAfterClick}`)
+const statusAfterClick = await readSaveStatus()
+check('clicking a node does not dirty it: status still reads "Saved"', statusAfterClick === 'Saved', `text="${statusAfterClick}"`)
 
 // ---- 11: Backspace inside a text field must edit text, never delete the selected node ----
 // Reset every layer server-side and reload before the remaining pixel-coordinate
@@ -485,6 +513,42 @@ check(
   'deleting nothing does not consume a history entry: Ctrl+Z undoes the add, not a no-op',
   afterNoopDeleteUndoCount === 0,
   `count=${afterNoopDeleteUndoCount}`,
+)
+
+// ---- 13: save-status goes dirty immediately, then settles to "Saved" ----
+// The debounce in useAutosave() fires 800ms after the store goes dirty.
+// addTableAt's own internal 150ms settle-wait leaves ~650ms of headroom
+// before that timer fires, so checking the status right after it returns
+// should reliably still read "Unsaved changes".
+await clickTab('Database')
+await clearActiveLayer()
+// Clearing is itself a mutation and goes through the same autosave debounce,
+// so let that settle to "Saved" first — otherwise the baseline before the
+// add below is indistinguishable from the dirty state we're about to assert.
+await page.waitForTimeout(1000)
+const statusBeforeAdd = await readSaveStatus()
+check('setup: status reads "Saved" on a freshly cleared layer', statusBeforeAdd === 'Saved', `text="${statusBeforeAdd}"`)
+await addTableAt(500, 400)
+const statusImmediatelyAfterAdd = await readSaveStatus()
+check(
+  'save-status goes dirty ("Unsaved changes") immediately after an edit, before autosave fires',
+  statusImmediatelyAfterAdd === 'Unsaved changes',
+  `text="${statusImmediatelyAfterAdd}"`,
+)
+await page.waitForTimeout(1500)
+const statusAfterAutosaveSettles = await readSaveStatus()
+check(
+  'save-status settles back to "Saved" once autosave lands',
+  statusAfterAutosaveSettles === 'Saved',
+  `text="${statusAfterAutosaveSettles}"`,
+)
+
+// ---- 14: no button in the header when healthy — status text only ----
+const headerButtonCount = await page.locator('.header-actions button').count()
+check(
+  'no clickable button in .header-actions when healthy (status-only readout)',
+  headerButtonCount === 0,
+  `buttons=${headerButtonCount}`,
 )
 
 await browser.close()

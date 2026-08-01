@@ -3,7 +3,7 @@ import type { Tool } from '../store'
 import type { Layer } from '../types'
 
 const TOOLS: { id: Tool; icon: string; label: string; key: string }[] = [
-  { id: 'select', icon: '⯈', label: 'Select / move', key: 'V' },
+  { id: 'select', icon: '⯈', label: 'Select / move — Shift+drag to box-select', key: 'V' },
   { id: 'rect', icon: '▭', label: 'Draw rectangle (drag on canvas)', key: 'R' },
   { id: 'circle', icon: '◯', label: 'Draw circle (drag on canvas)', key: 'C' },
   { id: 'table', icon: '▦', label: 'Draw table (drag on canvas)', key: 'T' },

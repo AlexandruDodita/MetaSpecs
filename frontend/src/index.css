@@ -84,6 +84,10 @@ body {
   color: #e06c6c;
 }
 
+.save-status--dirty {
+  color: #e8c14b;
+}
+
 button {
   padding: 6px 12px;
   border: 1px solid #34363f;

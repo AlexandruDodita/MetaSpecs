@@ -38,9 +38,7 @@ function App() {
     loadAll().catch((e: Error) => setError(e.message))
   }, [loadAll])
 
-  const hasDirty = Object.values(dirty).some(Boolean)
-
-  const save = async () => {
+  const retrySave = async () => {
     setError(null)
     try {
       await useGraphStore.getState().persistDirty()
@@ -92,17 +90,20 @@ function App() {
           ))}
         </div>
         <div className="header-actions">
-          <button onClick={save} disabled={!hasDirty}>
-            Save all
-          </button>
-          {saveState !== 'idle' && (
-            <span
-              className={`save-status save-status--${saveState}`}
-              title={saveState === 'error' ? saveError ?? undefined : undefined}
-            >
-              {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Save failed'}
+          {saveState === 'error' ? (
+            <span className="save-status save-status--error" title={saveError ?? undefined}>
+              Save failed
             </span>
+          ) : saveState === 'saving' ? (
+            <span className="save-status save-status--saving">Saving…</span>
+          ) : Object.values(dirty).some(Boolean) ? (
+            <span className={`save-status save-status--${saveState} save-status--dirty`}>
+              Unsaved changes
+            </span>
+          ) : (
+            <span className={`save-status save-status--${saveState}`}>Saved</span>
           )}
+          {saveState === 'error' && <button onClick={retrySave}>Retry</button>}
         </div>
       </header>
 
