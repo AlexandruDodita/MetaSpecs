@@ -10,7 +10,7 @@ LAYERS = Literal["backend", "db", "frontend"]
 LAYER_NAMES = ["backend", "db", "frontend"]
 SEVERITY = Literal["error", "warning", "info"]
 
-# React Flow UI state that must never be persisted (see GraphNode/GraphEdge).
+# React Flow UI state that must never be persisted.
 TRANSIENT_FLOW_FIELDS = ("selected", "dragging", "resizing")
 
 # Marker + schema version identifying a project file as ours ("metaspecs").
@@ -19,12 +19,7 @@ PROJECT_VERSION = 1
 
 
 class FlowElement(BaseModel):
-    """Base for stored React Flow elements.
-
-    Extra fields (style, measured, …) are passthrough so sizes survive a
-    round-trip, but the UI-only flags in TRANSIENT_FLOW_FIELDS are dropped —
-    persisting them makes a reopened project render pre-selected nodes.
-    """
+    """Stored React Flow element: extras pass through, UI flags are dropped."""
 
     model_config = ConfigDict(extra="allow")
 

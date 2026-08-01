@@ -172,22 +172,18 @@ def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]
 
 @server.tool(
     description=(
-        "Add a node to a layer graph. type is one of table, shape, class, "
-        "service. Node data per type: 'table' takes {label, columns: "
-        "[{name, type, constraint}]} (constraint is free text like "
-        "'PRIMARY KEY', never an enum); 'shape' takes {kind: "
-        "'rect'|'circle', label, items: [string]}; 'class' takes {label, "
-        "fields: [{name, visibility, type}], methods: [{id, name, "
-        "visibility, returnType, params, steps: [{id, kind, label}]}]} "
-        "where visibility is 'public'|'private'|'protected' and a step's "
-        "kind is 'step'|'branch'|'call' (all id fields must be unique "
-        "strings within the node); 'service' takes {label} only — a "
-        "service's member classes are NOT stored in its data, membership "
-        "comes from edges, so to put a class in a service use add_edge "
-        "with the service and class node ids in either direction. Layer "
-        "guidance (matching the UI): class is backend+frontend only, "
-        "service is backend only, table and shape work on any layer. "
-        "Returns the new node id and the resulting graph counts."
+        "Add a node to a layer graph. data by type — "
+        "table: {label, columns: [{name, type, constraint}]}, constraint is "
+        "free text like 'PRIMARY KEY', never an enum. "
+        "shape: {kind: 'rect'|'circle', label, items: [string]}. "
+        "class: {label, fields: [{name, visibility, type}], methods: [{id, "
+        "name, visibility, returnType, params, steps: [{id, kind, label}]}]}, "
+        "visibility is public|private|protected, step kind is "
+        "step|branch|call, ids unique within the node. "
+        "service: {label} only — members are NOT in its data, wire a class to "
+        "it with add_edge (either direction). "
+        "Layers, as in the UI: class is backend+frontend, service is backend, "
+        "table and shape are any. Returns the new node id and graph counts."
     )
 )
 def add_node(

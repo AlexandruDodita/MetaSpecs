@@ -9,15 +9,12 @@ import NodeSideHandles from './NodeSideHandles'
 
 const SIDE_HANDLE_IDS: ReadonlySet<string> = new Set(['top', 'right', 'bottom', 'left'])
 
-/** Stable, unique handle id per column; falls back to the index on collisions
- *  so existing edges keyed on a unique column name keep working. */
+/** Unique handle id per column, preferring the name so existing edges survive. */
 function columnHandleIds(columns: Column[]): string[] {
   const used = new Set(SIDE_HANDLE_IDS)
   return columns.map((col, i) => {
     let id = col.name && !used.has(col.name) ? col.name : `col-${i}`
-    // A column can be named "col-3" outright, so the fallback needs its own
-    // uniqueness pass — a duplicate id would silently steal the other's edges.
-    while (used.has(id)) id = `${id}-${i}`
+    while (used.has(id)) id = `${id}-${i}` // a column can be named "col-3"
     used.add(id)
     return id
   })

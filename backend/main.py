@@ -12,8 +12,7 @@ from backend.routes import compile, graph, projects, validate
 
 app = FastAPI(title="MetaSpecs", version="0.1.0")
 
-# Local dev origin allowlist. The single-process serve is same-origin and
-# serves the built frontend from /, so it does not need an entry here.
+# Vite dev origins; the single-process serve is same-origin.
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 app.add_middleware(

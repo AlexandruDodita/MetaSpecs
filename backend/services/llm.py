@@ -23,8 +23,7 @@ class RoleConfig(BaseModel):
     base_url: str
     model: str
     api_key: str
-    # The api_key as written in models.yaml (e.g. "${OPENAI_API_KEY}"), kept so
-    # a failed lookup can name the env var that didn't resolve.
+    # Unresolved form (e.g. "${OPENAI_API_KEY}"), so errors can name the var.
     api_key_source: str = ""
 
 
