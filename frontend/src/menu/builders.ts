@@ -1,4 +1,4 @@
-import { useGraphStore } from '../store'
+import { useGraphStore, isExpanded } from '../store'
 import { MenuAction, MenuSeparator, MenuSubmenu } from './types'
 import type { MenuContext, MenuItem } from './types'
 import { makeNode } from '../nodeFactory'
@@ -76,8 +76,8 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
     const expandedId = store.expandedMethod[nodeId] ?? null
     items.push(
       new MenuAction(
-        store.expanded[nodeId] === false ? 'Expand class' : 'Collapse class',
-        () => store.toggleExpanded(nodeId),
+        isExpanded(store.expanded, nodeId, 'class') ? 'Collapse class' : 'Expand class',
+        () => store.toggleExpanded(nodeId, 'class'),
       ),
     )
     items.push(
@@ -98,8 +98,8 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
   if (isService) {
     items.push(
       new MenuAction(
-        store.expanded[nodeId] ? 'Collapse service' : 'Expand service',
-        () => store.toggleExpanded(nodeId),
+        isExpanded(store.expanded, nodeId, 'service') ? 'Collapse service' : 'Expand service',
+        () => store.toggleExpanded(nodeId, 'service'),
       ),
     )
   }

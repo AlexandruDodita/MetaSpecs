@@ -3,7 +3,7 @@ import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
 import type { AppNode, ClassNodeData, Method, ServiceNodeData } from '../types'
-import { useGraphStore } from '../store'
+import { useGraphStore, isExpanded } from '../store'
 import { Highlighted, VisibilityBadge } from './Highlighted'
 import NodeSideHandles from './NodeSideHandles'
 
@@ -125,7 +125,7 @@ function TreeClassRow({ node, depth }: { node: AppNode; depth: number }) {
 }
 
 function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
-  const expanded = useGraphStore((s) => s.expanded[id])
+  const expanded = useGraphStore((s) => isExpanded(s.expanded, id, 'service'))
   const toggleExpanded = useGraphStore((s) => s.toggleExpanded)
   const members = useMemberClasses(id)
 
@@ -133,7 +133,7 @@ function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
 
   const toggle = (e: { stopPropagation: () => void }) => {
     e.stopPropagation()
-    toggleExpanded(id)
+    toggleExpanded(id, 'service')
   }
 
   return (

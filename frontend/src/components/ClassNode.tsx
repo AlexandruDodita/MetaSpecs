@@ -3,7 +3,7 @@ import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
 import type { ClassNodeData, Field, LogicKind, LogicStep, Method } from '../types'
-import { useGraphStore } from '../store'
+import { useGraphStore, isExpanded } from '../store'
 import { makeLogicStep, uid } from '../nodeFactory'
 import { Highlighted, VisibilityBadge } from './Highlighted'
 import NodeSideHandles from './NodeSideHandles'
@@ -308,7 +308,7 @@ function MethodSteps({ id, method }: { id: string; method: Method }) {
 function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
   const expandedMethod = useGraphStore((s) => s.expandedMethod)
   const setExpandedMethod = useGraphStore((s) => s.setExpandedMethod)
-  const classExpanded = useGraphStore((s) => s.expanded[id]) !== false
+  const classExpanded = useGraphStore((s) => isExpanded(s.expanded, id, 'class'))
   const toggleExpanded = useGraphStore((s) => s.toggleExpanded)
 
   const label = data.label ?? 'class'
@@ -325,7 +325,7 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
           title={classExpanded ? 'Collapse class (hide methods)' : 'Expand class'}
           onClick={(e) => {
             e.stopPropagation()
-            toggleExpanded(id)
+            toggleExpanded(id, 'class')
           }}
         >
           {classExpanded ? '▾' : '▸'}

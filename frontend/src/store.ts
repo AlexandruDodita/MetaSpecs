@@ -15,11 +15,24 @@ import type {
   ShapeKind,
 } from './types'
 import { loadGraph, saveGraph } from './api'
-import { DEFAULT_SIZE, uid, makeNodeId, type PlaceableKind } from './nodeFactory'
+import { DEFAULT_SIZE, uid, makeNodeId, placeableKindOf } from './nodeFactory'
 import { closestSides } from './geometry'
 
 export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'class' | 'service' | 'wire'
 export type PlaceableTool = 'rect' | 'circle' | 'table' | 'class' | 'service'
+
+/** Expansion defaults differ by node kind: classes start expanded, services collapsed. */
+export const EXPANDED_BY_DEFAULT: Record<'class' | 'service', boolean> = {
+  class: true,
+  service: false,
+}
+
+/** The single reading of the shared `expanded` map. */
+export const isExpanded = (
+  expanded: Record<string, boolean>,
+  nodeId: string,
+  kind: 'class' | 'service',
+): boolean => expanded[nodeId] ?? EXPANDED_BY_DEFAULT[kind]
 
 /** Live drag-to-draw rectangle in flow coordinates. */
 export interface Drawing {
@@ -78,7 +91,7 @@ interface GraphState {
   expanded: Record<string, boolean>
   /** UI-only: class nodeId → expanded method id (null = none). Not persisted. */
   expandedMethod: Record<string, string | null>
-  toggleExpanded: (nodeId: string) => void
+  toggleExpanded: (nodeId: string, kind: 'class' | 'service') => void
   setExpandedMethod: (nodeId: string, methodId: string | null) => void
   updateMethodSteps: (layer: Layer, classNodeId: string, methodId: string, steps: LogicStep[]) => void
   undo: (layer: Layer) => void
@@ -169,8 +182,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   expanded: {},
   expandedMethod: {},
 
-  toggleExpanded: (nodeId) =>
-    set((state) => ({ expanded: { ...state.expanded, [nodeId]: !state.expanded[nodeId] } })),
+  toggleExpanded: (nodeId, kind) =>
+    set((state) => ({
+      expanded: {
+        ...state.expanded,
+        [nodeId]: !isExpanded(state.expanded, nodeId, kind),
+      },
+    })),
 
   setExpandedMethod: (nodeId, methodId) =>
     set((state) => ({ expandedMethod: { ...state.expandedMethod, [nodeId]: methodId } })),
@@ -362,6 +380,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           state.editingNodeId && idsSet.has(state.editingNodeId)
             ? null
             : state.editingNodeId,
+        editDraft:
+          state.editingNodeId && idsSet.has(state.editingNodeId)
+            ? null
+            : state.editDraft,
         wireSource:
           state.wireSource && idsSet.has(state.wireSource) ? null : state.wireSource,
         ...pushHistory(state, layer),
@@ -412,12 +434,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const state = get()
     const node = state.graphs[layer].nodes.find((n) => n.id === nodeId)
     if (!node) return
-    const kind: PlaceableKind =
-      node.type === 'shape'
-        ? ((node.data as { kind?: ShapeKind }).kind ?? 'rect')
-        : node.type === 'table' || node.type === 'class' || node.type === 'service'
-          ? node.type
-          : 'table'
+    const kind = placeableKindOf(node)
     const width = (node.style?.width as number | undefined) ?? DEFAULT_SIZE[kind].width
     const copy: AppNode = {
       ...node,
@@ -433,6 +450,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       graphs: { ...state.graphs, [layer]: { nodes: [], edges: [] } },
       dirty: { ...state.dirty, [layer]: true },
       editingNodeId: null,
+      editDraft: null,
       wireSource: null,
       drawing: null,
       selectedNodeIds: [],
@@ -629,6 +647,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       loadSeq: get().loadSeq + 1,
       expanded: {},
       expandedMethod: {},
+      dirty: { backend: false, db: false, frontend: false },
+      saveState: 'saved',
+      saveError: null,
     })
   },
 }))

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MenuSeparator, MenuSubmenu } from '../menu/types'
+import { MenuAction, MenuSeparator, MenuSubmenu } from '../menu/types'
 import type { MenuItem } from '../menu/types'
 
 interface ContextMenuProps {
@@ -20,6 +20,7 @@ function menuItemClass(item: MenuItem, index: number, openIndex: number | null):
   let cls = 'menu__item'
   if (item instanceof MenuSeparator) return cls
   if (openIndex === index) cls += ' menu__item--open'
+  if (item instanceof MenuAction && item.danger) cls += ' menu__item--danger'
   return cls
 }
 
@@ -29,6 +30,7 @@ function SeparatorRow() {
 
 export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
   const [submenu, setSubmenu] = useState<OpenSubmenu | null>(null)
   const [pos, setPos] = useState({ x, y })
 
@@ -40,6 +42,24 @@ export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
     const overflowY = rect.bottom > window.innerHeight ? rect.height : 0
     setPos({ x: Math.max(0, x - overflowX), y: Math.max(0, y - overflowY) })
   }, [x, y])
+
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (ref.current?.contains(target)) return
+      if (submenuRef.current?.contains(target)) return
+      onClose()
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
 
   const closeSubmenu = () => setSubmenu(null)
 
@@ -90,6 +110,7 @@ export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
       </div>
       {submenu && (
         <div
+          ref={submenuRef}
           className="menu menu--submenu"
           style={{ left: submenu.x, top: submenu.y }}
           onClick={onClose}
@@ -101,7 +122,7 @@ export function ContextMenu({ items, x, y, onClose }: ContextMenuProps) {
             return (
               <div
                 key={i}
-                className="menu__item"
+                className={menuItemClass(child, i, null)}
                 onClick={() => {
                   child.run()
                   onClose()

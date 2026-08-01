@@ -36,6 +36,14 @@ export function makeNodeId(): string {
   return uid('n')
 }
 
+/** The PlaceableKind a stored node was built from (drives default sizes). */
+export function placeableKindOf(node: { type?: string; data?: unknown }): PlaceableKind {
+  if (node.type === 'table' || node.type === 'class' || node.type === 'service') {
+    return node.type
+  }
+  return (node.data as { kind?: ShapeKind } | undefined)?.kind ?? 'rect'
+}
+
 export function makeTableData(label = 'table'): TableNodeData {
   return {
     label,

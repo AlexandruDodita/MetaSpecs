@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useGraphStore, useCanUndo, useCanRedo } from '../store'
 import type { Tool } from '../store'
 import type { Layer } from '../types'
@@ -40,7 +40,7 @@ export function Toolbar() {
   const hasSelection = selected.length > 0
   const canUndo = useCanUndo(layer)
   const canRedo = useCanRedo(layer)
-  const visibleTools = TOOLS.filter((t) => !t.layers || t.layers.includes(layer))
+  const visibleTools = useMemo(() => TOOLS.filter((t) => !t.layers || t.layers.includes(layer)), [layer])
 
   useEffect(() => {
     if (tool !== 'select' && !visibleTools.some((t) => t.id === tool)) setTool('select')

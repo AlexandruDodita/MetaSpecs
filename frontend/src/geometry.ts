@@ -1,11 +1,10 @@
-import { DEFAULT_SIZE, type PlaceableKind } from './nodeFactory'
-import type { AppNode, ShapeKind } from './types'
+import { DEFAULT_SIZE, placeableKindOf } from './nodeFactory'
+import type { AppNode } from './types'
 
 export type Side = 'top' | 'right' | 'bottom' | 'left'
 
 export function nodeSizeOf(node: AppNode): { width: number; height: number } {
-  const kind: PlaceableKind =
-    node.type === 'table' ? 'table' : ((node.data as { kind?: ShapeKind }).kind ?? 'rect')
+  const kind = placeableKindOf(node)
   const fallback = DEFAULT_SIZE[kind]
   return {
     width: node.width ?? (node.style?.width as number | undefined) ?? fallback.width,

@@ -7,6 +7,22 @@ import { useGraphStore } from '../store'
 import { COLUMN_TYPES, CONSTRAINTS } from '../schema-options'
 import NodeSideHandles from './NodeSideHandles'
 
+const SIDE_HANDLE_IDS: ReadonlySet<string> = new Set(['top', 'right', 'bottom', 'left'])
+
+/** Stable, unique handle id per column; falls back to the index on collisions
+ *  so existing edges keyed on a unique column name keep working. */
+function columnHandleIds(columns: Column[]): string[] {
+  const used = new Set(SIDE_HANDLE_IDS)
+  return columns.map((col, i) => {
+    let id = col.name && !used.has(col.name) ? col.name : `col-${i}`
+    // A column can be named "col-3" outright, so the fallback needs its own
+    // uniqueness pass — a duplicate id would silently steal the other's edges.
+    while (used.has(id)) id = `${id}-${i}`
+    used.add(id)
+    return id
+  })
+}
+
 function TypeSelect({
   value,
   onChange,
@@ -136,11 +152,12 @@ function EditForm({ onDone }: { onDone: () => void }) {
 
 function SchemaView({ id }: { id: string }) {
   const data = useGraphStore((s) => s.graphs[s.activeLayer].nodes.find((n) => n.id === id)?.data)
-  const isEditing = useGraphStore((s) => s.editingNodeId)
+  const isEditing = useGraphStore((s) => s.editingNodeId === id)
   const updateNodeInternals = useUpdateNodeInternals()
   const columns = (data?.columns as Column[] | undefined) ?? []
   const label = (data?.label as string | undefined) ?? 'table'
   const columnKey = columns.map((c) => c.name).join('|')
+  const handleIds = columnHandleIds(columns)
 
   useEffect(() => {
     updateNodeInternals(id)
@@ -178,7 +195,7 @@ function SchemaView({ id }: { id: string }) {
                     </span>
                   )}
                   <Handle
-                    id={col.name || `col-${i}`}
+                    id={handleIds[i]}
                     type="target"
                     position={Position.Left}
                     className="schema__handle"
@@ -188,7 +205,7 @@ function SchemaView({ id }: { id: string }) {
                 </td>
                 <td className="schema__col-type">
                   <Handle
-                    id={col.name || `col-${i}`}
+                    id={handleIds[i]}
                     type="source"
                     position={Position.Right}
                     className="schema__handle"

@@ -85,6 +85,7 @@ function App() {
       await useGraphStore.getState().persistDirty()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      return
     }
     localStorage.removeItem(PROJECT_KEY)
     setProject(null)

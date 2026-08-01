@@ -22,7 +22,7 @@ import type {
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import '@xyflow/react/dist/style.css'
 import type { AppNode, Layer } from '../types'
-import { useGraphStore, useLayerNodes, useLayerEdges } from '../store'
+import { useGraphStore, useLayerNodes, useLayerEdges, isExpanded } from '../store'
 import type { PlaceableTool } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
 import { ContextMenu } from './ContextMenu'
@@ -147,7 +147,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
         .filter((id) => serviceIds.has(id))
       if (
         connectedServices.length > 0 &&
-        !connectedServices.some((id) => expanded[id] === true)
+        !connectedServices.some((sid) => isExpanded(expanded, sid, 'service'))
       ) {
         hidden.add(n.id)
       }
