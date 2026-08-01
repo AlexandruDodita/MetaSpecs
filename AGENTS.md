@@ -43,6 +43,11 @@ agent-execution loop (MVP stops at tasks.json).
   `data/projects/<project-id>.json`. Legacy pre-project files
   (`backend.graph.json` etc.) are imported once into an "Untitled" project by
   `storage._ensure_migrated()` on first `list_projects()` call.
+- `mcp/` — MCP server exposing the whole app to LLM clients over stdio
+  (`mcp/server.py`). Versions: MCP integration `0.1`, MetaSpecs project
+  `v0.0.1`. It proxies the HTTP API (`METASPECS_API_URL`, default
+  `http://localhost:8000`) with tools for project CRUD, graph read/write,
+  node/wire editing, reports, validate and compile.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
   `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
 
@@ -51,6 +56,10 @@ agent-execution loop (MVP stops at tasks.json).
 - Backend: `pip install -r requirements.txt`; run
   `uvicorn backend.main:app --reload --port 8000` from repo root (paths are
   cwd-relative).
+- MCP server: `.venv/bin/python mcp/server.py` (stdio; requires the backend
+  running). Do NOT use `python -m mcp.server` — the local `mcp/` directory
+  would shadow the installed `mcp` package. Client config:
+  `{"mcpServers": {"metaspecs": {"command": ".venv/bin/python", "args": ["mcp/server.py"]}}}`.
 - Frontend dev: `npm --prefix frontend run dev` (port 5173, Vite proxies
   `/api` → :8000).
 - Single-process serve: `npm --prefix frontend run build`, then uvicorn serves

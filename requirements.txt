@@ -5,3 +5,4 @@ pyyaml
 openai
 instructor
 httpx
+mcp
