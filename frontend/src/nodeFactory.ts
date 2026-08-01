@@ -6,6 +6,12 @@ export const DEFAULT_SIZE: Record<'table' | ShapeKind, { width: number; height: 
   circle: { width: 120, height: 120 },
 }
 
+export const MIN_SIZE: Record<PlaceableKind, { width: number; height: number }> = {
+  table: { width: 260, height: 120 },
+  rect: { width: 60, height: 60 },
+  circle: { width: 60, height: 60 },
+}
+
 let seq = 0
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`
@@ -37,11 +43,14 @@ export function makeNode(
   height?: number,
 ): AppNode {
   const size = DEFAULT_SIZE[kind]
+  const min = MIN_SIZE[kind]
+  const w = Math.max(width ?? size.width, min.width)
+  const h = Math.max(height ?? size.height, min.height)
   return {
     id: makeNodeId(),
     type: kind === 'table' ? 'table' : 'shape',
     position: { x, y },
-    style: { width: width ?? size.width, height: height ?? size.height },
+    style: { width: w, height: h },
     data: kind === 'table' ? makeTableData() : makeShapeData(kind),
   }
 }

@@ -11,6 +11,8 @@ export type PlaceableTool = 'rect' | 'circle' | 'table'
 /** Live drag-to-draw rectangle in flow coordinates. */
 export interface Drawing {
   kind: ShapeKind | 'table'
+  originX: number
+  originY: number
   x: number
   y: number
   w: number
@@ -411,7 +413,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       ...pushHistory(state, layer),
     })),
 
-  startDrawing: (kind, x, y) => set({ drawing: { kind, x, y, w: 0, h: 0 } }),
+  startDrawing: (kind, x, y) =>
+    set({ drawing: { kind, originX: x, originY: y, x, y, w: 0, h: 0 } }),
 
   updateDrawing: (x, y) => {
     const d = get().drawing
@@ -419,10 +422,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({
       drawing: {
         ...d,
-        x: Math.min(d.x, x),
-        y: Math.min(d.y, y),
-        w: Math.abs(x - d.x),
-        h: Math.abs(y - d.y),
+        x: Math.min(d.originX, x),
+        y: Math.min(d.originY, y),
+        w: Math.abs(x - d.originX),
+        h: Math.abs(y - d.originY),
       },
     })
   },

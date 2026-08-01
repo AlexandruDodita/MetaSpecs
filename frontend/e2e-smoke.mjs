@@ -551,6 +551,161 @@ check(
   `buttons=${headerButtonCount}`,
 )
 
+// ==== New checks: drag-to-draw preview visuals (visible ghost chrome) ====
+
+// ---- N1: rect preview is visible (not the old visibility:hidden ghost) while drawing ----
+await clickTab('Database')
+await clearActiveLayer()
+await page.keyboard.press('v')
+await page.waitForTimeout(100)
+await page.keyboard.press('r')
+await page.waitForTimeout(150)
+await page.mouse.move(500, 400)
+await page.mouse.down()
+await page.mouse.move(650, 520, { steps: 8 })
+await page.waitForTimeout(150)
+const rectPreview = page.locator('.react-flow__node-preview')
+const rectPreviewVisibility = await rectPreview
+  .evaluate((el) => getComputedStyle(el).visibility)
+  .catch(() => 'missing')
+const rectPreviewHasGhost = await rectPreview.locator('.shape-node--ghost').count()
+check(
+  'drag-to-draw rect preview is visible while drawing (no longer visibility:hidden)',
+  rectPreviewVisibility === 'visible' && rectPreviewHasGhost === 1,
+  `visibility="${rectPreviewVisibility}" ghost-count=${rectPreviewHasGhost}`,
+)
+await page.keyboard.press('Escape')
+await page.mouse.up()
+await page.waitForTimeout(150)
+
+// ---- N2: table preview shows realistic table chrome (badge "TABLE") ----
+await page.keyboard.press('t')
+await page.waitForTimeout(150)
+await page.mouse.move(500, 400)
+await page.mouse.down()
+await page.mouse.move(700, 550, { steps: 8 })
+await page.waitForTimeout(150)
+const tablePreview = page.locator('.react-flow__node-preview')
+const badgeText = await tablePreview.locator('.schema__badge').innerText().catch(() => '')
+check('drag-to-draw table preview shows table chrome badge "TABLE"', badgeText === 'TABLE', `badge="${badgeText}"`)
+await page.keyboard.press('Escape')
+await page.mouse.up()
+await page.waitForTimeout(150)
+
+// ---- N3: dragging back past the origin resets the anchor, not stuck at max extent ----
+// The .canvas__hint readout prints "W × H" in flow units, which is robust to any
+// viewport zoom/pan accumulated by earlier checks in this run (unlike raw pixel math).
+await page.keyboard.press('r')
+await page.waitForTimeout(150)
+const anchorX = 600
+const anchorY = 400
+await page.mouse.move(anchorX, anchorY)
+await page.mouse.down()
+await page.mouse.move(anchorX + 200, anchorY + 150, { steps: 8 })
+await page.waitForTimeout(100)
+await page.mouse.move(anchorX - 120, anchorY - 90, { steps: 8 })
+await page.waitForTimeout(150)
+const hintText = await page.locator('.canvas__hint').first().innerText()
+const hintMatch = hintText.match(/(\d+)\s*[×x]\s*(\d+)/)
+const hintW = hintMatch ? Number(hintMatch[1]) : NaN
+const hintH = hintMatch ? Number(hintMatch[2]) : NaN
+check(
+  'drag-back past origin resets the anchor to the new small extent (~120x90), not stuck at ~320x240',
+  Math.abs(hintW - 120) <= 5 && Math.abs(hintH - 90) <= 5,
+  `hint="${hintText}" parsed=${hintW}x${hintH}`,
+)
+await page.keyboard.press('Escape')
+await page.mouse.up()
+await page.waitForTimeout(150)
+
+// ---- N4: drawn nodes are clamped up to the minimum size on release ----
+await clearActiveLayer()
+await page.keyboard.press('t')
+await page.waitForTimeout(150)
+await page.mouse.move(500, 400)
+await page.mouse.down()
+await page.mouse.move(540, 430, { steps: 4 }) // ~40x30 drag, well under the 260x120 table minimum
+await page.mouse.up()
+await page.waitForTimeout(1600)
+const minSizeResp = await page.request.get('http://localhost:8000/api/graph/db')
+const minSizeJson = await minSizeResp.json()
+const clampedStyle = minSizeJson.nodes?.[0]?.style
+check(
+  'tiny table drag is clamped to at least the 260x120 minimum size on the server',
+  !!clampedStyle && clampedStyle.width >= 260 && clampedStyle.height >= 120,
+  `style=${JSON.stringify(clampedStyle)}`,
+)
+
+// ==== New checks: wire tool live preview line, snap, cancel-on-far-click ====
+
+await clearActiveLayer()
+await addTableAt(200, 150)
+await addTableAt(750, 150)
+await page.waitForTimeout(200)
+const wireNodes = page.locator('.react-flow__node')
+const wireBox1 = await wireNodes.nth(0).boundingBox()
+const wireBox2 = await wireNodes.nth(1).boundingBox()
+check(
+  'setup: 2 tables placed far apart for wire-preview checks',
+  !!wireBox1 && !!wireBox2,
+  `box1=${JSON.stringify(wireBox1)} box2=${JSON.stringify(wireBox2)}`,
+)
+
+// Just outside node2's left edge — within the 140-flow-unit snap radius.
+const nearNode2 = { x: wireBox2.x - 40, y: wireBox2.y + wireBox2.height / 2 }
+// Well clear of both nodes' bounding boxes (>140 units away from either).
+const farAway = {
+  x: (wireBox1.x + wireBox2.x) / 2 + 20,
+  y: Math.max(wireBox1.y, wireBox2.y) + Math.max(wireBox1.height, wireBox2.height) + 350,
+}
+
+await page.keyboard.press('w')
+await page.waitForTimeout(150)
+await wireNodes.nth(0).click()
+await page.waitForTimeout(150)
+await page.mouse.move(nearNode2.x, nearNode2.y, { steps: 8 })
+await page.waitForTimeout(200)
+const snappedLineCount = await page.locator('.wire-preview__line--snapped').count()
+const snapRingCount = await page.locator('.wire-preview__ring').count()
+check(
+  'wire preview: hovering just outside a node within snap range shows the snapped line + ring',
+  snappedLineCount === 1 && snapRingCount === 1,
+  `snappedLine=${snappedLineCount} ring=${snapRingCount}`,
+)
+
+await page.mouse.move(farAway.x, farAway.y, { steps: 8 })
+await page.waitForTimeout(200)
+const lineCountFar = await page.locator('.wire-preview__line').count()
+const snappedLineCountFar = await page.locator('.wire-preview__line--snapped').count()
+const snapRingCountFar = await page.locator('.wire-preview__ring').count()
+check(
+  'wire preview: moving far away keeps the plain line but drops the snapped state and ring',
+  lineCountFar === 1 && snappedLineCountFar === 0 && snapRingCountFar === 0,
+  `line=${lineCountFar} snappedLine=${snappedLineCountFar} ring=${snapRingCountFar}`,
+)
+
+// ---- clicking far from any node cancels wiring instead of connecting ----
+await page.mouse.click(farAway.x, farAway.y)
+await page.waitForTimeout(200)
+const edgesAfterFarClick = await page.locator('.react-flow__edge').count()
+const wireHintAfterCancel = await page.locator('.canvas__hint').first().innerText().catch(() => '')
+check('clicking far from any node cancels wiring: no edge is created', edgesAfterFarClick === 0, `edges=${edgesAfterFarClick}`)
+check(
+  'clicking far from any node resets the wire hint back to "Click a source node"',
+  wireHintAfterCancel.includes('Click a source node'),
+  `hint="${wireHintAfterCancel}"`,
+)
+
+// ---- clicking within snap range of a node connects to it ----
+await wireNodes.nth(0).click()
+await page.waitForTimeout(150)
+await page.mouse.move(nearNode2.x, nearNode2.y, { steps: 8 })
+await page.waitForTimeout(200)
+await page.mouse.click(nearNode2.x, nearNode2.y)
+await page.waitForTimeout(200)
+const edgesAfterNearClick = await page.locator('.react-flow__edge').count()
+check('clicking within snap range of a node connects, creating exactly 1 edge', edgesAfterNearClick === 1, `edges=${edgesAfterNearClick}`)
+
 await browser.close()
 const failed = results.filter((r) => !r.pass)
 console.log(`\n${results.length - failed.length}/${results.length} passed`)

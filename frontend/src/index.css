@@ -739,20 +739,34 @@ button:disabled {
 
 /* ---- Drag-to-draw preview ---- */
 
-.preview {
-  width: 100%;
-  height: 100%;
-  border: 1.5px dashed #7a8bff;
-  background: rgba(122, 139, 255, 0.12);
-  border-radius: 6px;
-}
-
-.preview--circle {
-  border-radius: 50%;
+.table-node--ghost,
+.shape-node--ghost {
+  opacity: 0.55;
+  border-style: dashed;
+  box-shadow: none;
 }
 
 .react-flow__node-preview {
   pointer-events: none;
+}
+
+/* ---- Wire tool live preview ---- */
+
+.wire-preview__line {
+  stroke: #7a8bff;
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 6 4;
+}
+
+.wire-preview__line--snapped {
+  stroke-dasharray: none;
+}
+
+.wire-preview__ring {
+  stroke: #7a8bff;
+  stroke-width: 2;
+  fill: none;
 }
 
 /* ---- Resize handles: always rendered, revealed on hover/selection ---- */

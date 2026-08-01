@@ -1,4 +1,4 @@
-import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap } from '@xyflow/react'
+import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, ViewportPortal } from '@xyflow/react'
 import { ReactFlowProvider, useReactFlow, useStoreApi } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
@@ -9,9 +9,9 @@ import type {
   Connection,
   NodeMouseHandler,
 } from '@xyflow/react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import '@xyflow/react/dist/style.css'
-import type { AppNode, Layer } from '../types'
+import type { AppNode, Layer, ShapeKind } from '../types'
 import { useGraphStore, useLayerNodes, useLayerEdges } from '../store'
 import type { PlaceableTool } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
@@ -19,11 +19,44 @@ import { ContextMenu } from './ContextMenu'
 import TableNode from './TableNode'
 import ShapeNode from './ShapeNode'
 import PreviewNode from './PreviewNode'
-import { makeNode } from '../nodeFactory'
+import { DEFAULT_SIZE, MIN_SIZE, makeNode, type PlaceableKind } from '../nodeFactory'
 
 const nodeTypes = { table: TableNode, shape: ShapeNode, preview: PreviewNode }
 
 const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set(['rect', 'circle', 'table'])
+
+const WIRE_SNAP_RADIUS = 140
+
+function nodeSizeOf(node: AppNode): { width: number; height: number } {
+  const kind: PlaceableKind =
+    node.type === 'table' ? 'table' : ((node.data as { kind?: ShapeKind }).kind ?? 'rect')
+  const fallback = DEFAULT_SIZE[kind]
+  return {
+    width: node.width ?? (node.style?.width as number | undefined) ?? fallback.width,
+    height: node.height ?? (node.style?.height as number | undefined) ?? fallback.height,
+  }
+}
+
+function nearestSnapNode(
+  nodes: AppNode[],
+  pointer: { x: number; y: number },
+  excludeId: string | null,
+): string | null {
+  let best: string | null = null
+  let bestDist = WIRE_SNAP_RADIUS
+  for (const node of nodes) {
+    if (node.id === excludeId) continue
+    const { width, height } = nodeSizeOf(node)
+    const dx = Math.max(node.position.x - pointer.x, 0, pointer.x - (node.position.x + width))
+    const dy = Math.max(node.position.y - pointer.y, 0, pointer.y - (node.position.y + height))
+    const dist = Math.hypot(dx, dy)
+    if (dist <= bestDist) {
+      bestDist = dist
+      best = node.id
+    }
+  }
+  return best
+}
 
 interface MenuState {
   items: ReturnType<typeof buildPaneMenu>
@@ -83,6 +116,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
   }, [nodes.length, fitView, layer, loadSeq])
 
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [wirePointer, setWirePointer] = useState<{ x: number; y: number } | null>(null)
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
@@ -114,23 +148,31 @@ function CanvasInner({ layer }: { layer: Layer }) {
     [layer, onConnect],
   )
 
+  const finishWiring = useCallback(
+    (targetId: string) => {
+      if (!wireSource || wireSource === targetId) return
+      connectNodes(layer, wireSource, targetId)
+      setWireSource(null)
+      setTool('select')
+    },
+    [wireSource, layer, connectNodes, setWireSource, setTool],
+  )
+
   const handleNodeClick = useCallback<NodeMouseHandler>(
     (_, node) => {
       if (PLACEMENT_TOOLS.has(tool as PlaceableTool)) return
       if (tool === 'wire') {
         if (!wireSource) {
           setWireSource(node.id)
-        } else if (wireSource !== node.id) {
-          connectNodes(layer, wireSource, node.id)
-          setWireSource(null)
-          setTool('select')
+        } else {
+          finishWiring(node.id)
         }
         return
       }
       commitEditing(layer)
       setSelectedNodeIds([node.id])
     },
-    [tool, wireSource, layer, connectNodes, setWireSource, setTool, commitEditing, setSelectedNodeIds],
+    [tool, wireSource, setWireSource, layer, finishWiring, commitEditing, setSelectedNodeIds],
   )
 
   useEffect(() => {
@@ -150,23 +192,39 @@ function CanvasInner({ layer }: { layer: Layer }) {
     return () => pane.removeEventListener('mousedown', onMouseDown)
   }, [tool, storeApi, closeMenu, commitEditing, layer, screenToFlowPosition, startDrawing])
 
-  const handlePaneClick = useCallback(() => {
-    closeMenu()
-    commitEditing(layer)
-    if (tool === 'wire' && wireSource) {
-      setWireSource(null)
-    }
-  }, [closeMenu, commitEditing, layer, tool, wireSource, setWireSource])
+  const handlePaneClick = useCallback(
+    (event: ReactMouseEvent) => {
+      closeMenu()
+      commitEditing(layer)
+      if (tool !== 'wire') return
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      const targetId = nearestSnapNode(nodes, position, wireSource)
+      if (!wireSource) {
+        if (targetId) setWireSource(targetId)
+        return
+      }
+      if (targetId) {
+        finishWiring(targetId)
+      } else {
+        setWireSource(null)
+      }
+    },
+    [closeMenu, commitEditing, layer, tool, wireSource, nodes, screenToFlowPosition, setWireSource, finishWiring],
+  )
 
   const buildDrawNode = useCallback(
     (drawing: ReturnType<typeof useGraphStore.getState>['drawing']) => {
       if (!drawing) return null
-      const kind = drawing.kind === 'table' ? 'table' : drawing.kind
+      const kind: PlaceableKind = drawing.kind
+      const width = Math.max(drawing.w, MIN_SIZE[kind].width)
+      const height = Math.max(drawing.h, MIN_SIZE[kind].height)
       const previewNode: AppNode = {
         id: '__draw__',
         type: 'preview',
         position: { x: drawing.x, y: drawing.y },
-        style: { width: Math.max(drawing.w, 1), height: Math.max(drawing.h, 1) },
+        width,
+        height,
+        style: { width, height },
         data: { kind },
         draggable: false,
         selectable: false,
@@ -204,6 +262,19 @@ function CanvasInner({ layer }: { layer: Layer }) {
       window.removeEventListener('mouseup', handleUp)
     }
   }, [isDrawing, layer, screenToFlowPosition, updateDrawing, addNodeAt])
+
+  useEffect(() => {
+    if (tool !== 'wire') {
+      setWirePointer(null)
+      return
+    }
+    const handleMove = (event: globalThis.MouseEvent) => {
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      setWirePointer({ x: position.x, y: position.y })
+    }
+    window.addEventListener('mousemove', handleMove)
+    return () => window.removeEventListener('mousemove', handleMove)
+  }, [tool, screenToFlowPosition])
 
   const handlePaneContextMenu = useCallback(
     (event: ReactMouseEvent | MouseEvent) => {
@@ -305,6 +376,61 @@ function CanvasInner({ layer }: { layer: Layer }) {
     drawNode ? [...nodes, drawNode] : nodes
   ) as unknown as Node[]
 
+  let wireOverlay: ReactNode = null
+  if (tool === 'wire' && wireSource && wirePointer) {
+    const sourceNode = nodes.find((n) => n.id === wireSource)
+    if (sourceNode) {
+      const snapId = nearestSnapNode(nodes, wirePointer, wireSource)
+      const snapNode = snapId ? (nodes.find((n) => n.id === snapId) ?? null) : null
+      const { width: sw, height: sh } = nodeSizeOf(sourceNode)
+      const sx = sourceNode.position.x + sw / 2
+      const sy = sourceNode.position.y + sh / 2
+      let tx = wirePointer.x
+      let ty = wirePointer.y
+      let ring: ReactNode = null
+      if (snapNode) {
+        const { width: tw, height: th } = nodeSizeOf(snapNode)
+        tx = snapNode.position.x + tw / 2
+        ty = snapNode.position.y + th / 2
+        ring = (
+          <rect
+            className="wire-preview__ring"
+            x={snapNode.position.x}
+            y={snapNode.position.y}
+            width={tw}
+            height={th}
+            rx={4}
+          />
+        )
+      }
+      wireOverlay = (
+        <ViewportPortal>
+          <svg
+            className="wire-preview"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 0,
+              height: 0,
+              overflow: 'visible',
+              pointerEvents: 'none',
+            }}
+          >
+            {ring}
+            <line
+              className={`wire-preview__line${snapNode ? ' wire-preview__line--snapped' : ''}`}
+              x1={sx}
+              y1={sy}
+              x2={tx}
+              y2={ty}
+            />
+          </svg>
+        </ViewportPortal>
+      )
+    }
+  }
+
   return (
     <div className="canvas">
       <ReactFlow
@@ -334,6 +460,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls />
         <MiniMap pannable zoomable />
+        {wireOverlay}
       </ReactFlow>
       {menu && <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={closeMenu} />}
       {drawing && tool !== 'select' && (
@@ -343,7 +470,9 @@ function CanvasInner({ layer }: { layer: Layer }) {
       )}
       {tool === 'wire' && (
         <div className="canvas__hint">
-          {wireSource ? 'Click a target node to wire it' : 'Click a source node'}
+          {wireSource
+            ? 'Move near a node to snap · click to connect · Esc to cancel'
+            : 'Click a source node'}
           <button onClick={() => setTool('select')}>cancel</button>
         </div>
       )}
