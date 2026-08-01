@@ -16,11 +16,15 @@ agent-execution loop (MVP stops at tasks.json).
 ## Layout
 
 - `backend/` — FastAPI. Entrypoint `backend/main.py` (`app`). Routes in
-  `backend/routes/{projects,graph,validate,compile}.py`, each with its own
-  `APIRouter`, mounted with prefix `/api`. Pydantic models in `backend/models.py`
-  (incl. `Project`, `ProjectInfo`, `ProjectReports`). Services in
+  `backend/routes/{projects,graph,validate,compile,imports}.py`, each with its
+  own `APIRouter`, mounted with prefix `/api`. Pydantic models in
+  `backend/models.py` (incl. `Project`, `ProjectInfo`, `ProjectReports`,
+  `ImportRequest`/`ImportStats`/`ImportResult`). Services in
   `backend/services/`: `storage.py` (JSON file IO, one file per project),
-  `llm.py` (OpenAI + instructor client), `validate.py`, `compile.py`.
+  `llm.py` (OpenAI + instructor client), `validate.py`, `compile.py`,
+  `importer.py` (thin wrapper over `tools/import_repo.py` — it holds no scanning
+  logic of its own; `from tools import import_repo` works because the repo root
+  is on `sys.path` and `tools/` is an implicit namespace package).
 - `frontend/` — Vite app (run everything with `npm --prefix frontend ...`).
   `src/types.ts` shared types; `src/store.ts` all Zustand graph state (active
   `project`, graphs, active layer, tools `select|rect|circle|table|wire`, live
@@ -29,7 +33,9 @@ agent-execution loop (MVP stops at tasks.json).
   project-scoped); `src/components/GraphCanvas.tsx` one `<ReactFlow>` per layer
   (drag-to-draw preview, context menus, wire tool, dark mode);
   `src/components/ProjectPicker.tsx` create/open/delete project screen (shown
-  when `store.project` is null); `src/components/TableNode.tsx` table node
+  when `store.project` is null) — also hosts "Import codebase", which creates a
+  project, POSTs the path to `/import`, and shows a counts/languages/warnings
+  summary; a failed import deletes the project it just created; `src/components/TableNode.tsx` table node
   (Oracle-style schema rows, one left/right handle pair per column) and
   `src/components/ShapeNode.tsx` generic shapes — rect (header + item list) and
   circle — both with edit mode (dropdowns/textarea, save/cancel/outside-click);
@@ -64,10 +70,11 @@ agent-execution loop (MVP stops at tasks.json).
   `EDGE_KINDS` must mirror `EDGE_KIND_NAMES` in `backend/models.py` (the repo
   root is not importable from `mcp/`). `set_edge_kind` leaves `protocol` alone
   when the argument is omitted — passing `""` is how you clear it.
-- `tools/` — snapshot/drift CLIs, stdlib only, not part of the served app.
-  `import_repo.py` scans the repo and emits a MetaSpecs graph (`--out`,
-  `--push <project-id>`); `diff_graphs.py` compares two graphs and exits 1 on
-  drift. See "Snapshot and drift" below.
+- `tools/` — snapshot/drift logic, stdlib only. `import_repo.py` is the single
+  repo scanner: it is both a CLI (`--root`, `--out`, `--push <project-id>`,
+  `--max-files`) and the library the backend's import endpoint calls. Never copy
+  scanning logic into `backend/`. `diff_graphs.py` compares two graphs and exits
+  1 on drift. See "Snapshot and drift" below.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
   `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
 
@@ -86,7 +93,13 @@ agent-execution loop (MVP stops at tasks.json).
   `frontend/dist` (main.py mounts it only if it exists).
 - No test framework. Verify with `python -c` / FastAPI TestClient scripts
   (`httpx` is in requirements.txt for TestClient). Playwright (devDep in
-  `frontend/`) is used for browser smoke tests.
+  `frontend/`) is used for browser smoke tests — run harnesses from inside
+  `frontend/` so `playwright` resolves.
+- Import a tree: `.venv/bin/python tools/import_repo.py --root <dir> --out x.json`,
+  or the "Import codebase" field on the project picker.
+- The dev backend is usually started WITHOUT `--reload`; a model or route change
+  needs a real restart. Check before believing a green API test:
+  `curl -s localhost:8000/openapi.json | grep <new-route>`.
 
 ## Contracts
 
@@ -119,7 +132,30 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
 - `tools/import_repo.py` must stay **byte-deterministic**: same tree in, same
   JSON out. No timestamps, no uuids, sorted everything. Node ids are derived
   from the path (`py:backend/services/storage.py`, `pkg:backend/services`)
-  precisely so a re-import matches the previous one.
+  precisely so a re-import matches the previous one. The gate before any change
+  lands: scan twice into two files and `cmp` them.
+- The scanner is **repo-agnostic** — it discovers files with `os.walk`, prunes
+  `SKIP_DIRS`, honours `.gitignore` (own matcher; `fnmatch` is wrong here
+  because its `*` crosses `/`), and infers a layer per file with `infer_layer`
+  (path segments beat extension: `DB_DIRS` → `FRONTEND_DIRS` → `BACKEND_DIRS`,
+  then `FRONTEND_LANGS`/`BACKEND_LANGS`). Nothing may hardcode this repo's
+  directory names.
+- Languages live in exactly two registries, `PARSERS` and `DEPS`, both keyed by
+  the language name from `LANGUAGES`. Adding a language means adding entries
+  there — never a second `if lang == ...` chain. Every parser has the signature
+  `(path, source) -> (fields, methods)`; every deps function
+  `(path, source) -> list[list[str]]` (candidate groups, first hit wins).
+- Parameter lists: `_ts_params(group, last=True)` for type-first languages
+  (Java, C#), default for `name: Type` and `name Type` (TS, Kotlin, Go).
+- SQL is the exception to module-per-file: `CREATE TABLE` emits `table` nodes
+  (`tbl:<path>#<name>`) with parsed columns in the `db` layer, and `REFERENCES`
+  becomes one `depends-on`/`foreign-key` edge per relation — a FK written both
+  inline and as a table-level constraint must not produce two edges.
+- Over `max_files` raises `ScanLimitError` (CLI exit 2, HTTP 413). Never
+  truncate silently.
+- `POST /api/projects/{id}/import` `{path, max_files?}` writes all three layers
+  plus `repo_path` in **one** `storage.write_project` call, and names a
+  first-time import after the scanned root (a re-import keeps the name).
 - Edges cannot cross layers (`Project.graphs` is `dict[layer, LayerGraph]`, and
   edges live inside one layer). The importer therefore drops cross-layer imports
   into a top-level `skipped_cross_layer` list rather than emitting them.
@@ -179,6 +215,15 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   (`kind: rect|circle`, `label`, `items[]`). Keep both in sync when changing.
 - `constraint` is free-text (e.g. "PRIMARY KEY", "NOT NULL"), never an enum;
   the edit-mode dropdowns in `TableNode.tsx` are suggestions only.
+- An imported layer looks empty on first open: modules land inside `pkg:`
+  service containers, and `GraphCanvas` hides a class while every service it is
+  wired to is collapsed. Expand a service to bring its classes onto the canvas.
+- `api.ts`'s `request()` prefers FastAPI's JSON `detail` over
+  `status statusText`, so route handlers should raise `HTTPException` with a
+  message worth showing a user — it reaches the screen verbatim.
+- The picker's path field is `.project-picker__path`, NOT
+  `.project-picker__name`; sharing that class made the selector ambiguous and
+  broke `e2e-smoke.mjs` under Playwright strict mode. Both share one CSS rule.
 - Placement tools (`rect|circle|table`) draw on drag: pane `mousedown`
   (native listener on `.react-flow__pane`, v12 has no `onPaneMouseDown` prop)
   → live `drawing` rect in the store → a `preview` node appended to the

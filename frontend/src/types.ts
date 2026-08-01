@@ -147,6 +147,25 @@ export interface ProjectInfo {
   created_at: string
   updated_at: string
   node_count: number
+  repo_path: string
+}
+
+export interface ImportStats {
+  files_scanned: number
+  files_skipped: number
+  by_language: Record<string, number>
+  by_layer: Record<string, number>
+  node_count: number
+  edge_count: number
+  warnings: string[]
+}
+
+export interface ImportResult {
+  project_id: string
+  root: string
+  path: string
+  stats: ImportStats
+  layers: Record<string, number>
 }
 
 export interface ProjectReports {

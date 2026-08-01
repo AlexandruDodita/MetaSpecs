@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { ProjectInfo } from '../types'
-import { createProject, deleteProject, listProjects } from '../api'
+import type { ImportResult, ProjectInfo } from '../types'
+import { createProject, deleteProject, importRepo, listProjects } from '../api'
 
 interface ProjectPickerProps {
   onOpen: (project: ProjectInfo) => void
@@ -23,6 +23,10 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importPath, setImportPath] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [imported, setImported] = useState<ProjectInfo | null>(null)
 
   const refresh = useCallback(async () => {
     setProjects(await listProjects())
@@ -58,6 +62,42 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
     }
   }
 
+  const runImport = async () => {
+    const path = importPath.trim()
+    if (!path) {
+      setError('Enter a path to a codebase to import.')
+      return
+    }
+    setImporting(true)
+    setError(null)
+    setResult(null)
+    setImported(null)
+    try {
+      // A placeholder only: the import renames the project after the scanned
+      // root, which is the first point anyone knows what the path resolves to.
+      const segments = path.split('/').filter((s) => s && s !== '.' && s !== '..')
+      const derived = segments.length > 0 ? segments[segments.length - 1] : 'Imported'
+      const project = await createProject(derived)
+      try {
+        const res = await importRepo(project.id, path)
+        setResult(res)
+        setImported(project)
+        await refresh()
+      } catch (e) {
+        try {
+          await deleteProject(project.id)
+        } catch {
+          // failing cleanup must not mask the real import error
+        }
+        throw e
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="project-picker">
       <div className="project-picker__inner">
@@ -78,12 +118,88 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
             placeholder="Project name…"
             autoFocus
           />
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || importing}>
             {busy ? 'Creating…' : 'New project'}
           </button>
         </form>
 
+        <form
+          className="project-picker__import"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void runImport()
+          }}
+        >
+          <input
+            className="project-picker__path"
+            value={importPath}
+            onChange={(e) => setImportPath(e.target.value)}
+            placeholder="/path/to/a/checkout"
+            spellCheck={false}
+            disabled={importing}
+          />
+          <button type="submit" disabled={busy || importing}>
+            {importing ? 'Scanning…' : 'Import codebase'}
+          </button>
+        </form>
+        <p className="project-picker__hint">
+          Reads the folder on this machine and snapshots its services, classes and
+          functions into a new project.
+        </p>
+
         {error && <p className="error">{error}</p>}
+
+        {result && imported && (
+          <div className="project-picker__result">
+            <button
+              className="project-picker__dismiss"
+              title="Dismiss"
+              onClick={() => {
+                setResult(null)
+                setImported(null)
+              }}
+            >
+              ×
+            </button>
+            <p className="project-picker__result-line">
+              <strong>Imported {result.root}</strong> —{' '}
+              <code>{result.path}</code>
+            </p>
+            {result.stats.node_count === 0 ? (
+              <p className="project-picker__result-line">
+                No source files recognised in that folder.
+              </p>
+            ) : (
+              <p className="project-picker__result-line">
+                {result.stats.files_scanned} files · {result.stats.node_count} nodes ·{' '}
+                {result.stats.edge_count} edges
+                {result.stats.files_skipped > 0
+                  ? ` · ${result.stats.files_skipped} skipped`
+                  : ''}
+              </p>
+            )}
+            <p className="project-picker__result-line">
+              {Object.entries(result.layers)
+                .map(([layer, count]) => `${layer} ${count}`)
+                .join(' · ')}
+            </p>
+            {Object.keys(result.stats.by_language).length > 0 && (
+              <p className="project-picker__result-line">
+                {Object.entries(result.stats.by_language)
+                  .map(([lang, count]) => `${lang} ${count}`)
+                  .join(' · ')}
+              </p>
+            )}
+            {result.stats.warnings.length > 0 && (
+              <ul className="project-picker__warnings">
+                {result.stats.warnings.map((warning, i) => (
+                  <li key={i}>{warning}</li>
+                ))}
+              </ul>
+            )}
+            <button onClick={() => onOpen(imported)}>Open {result.root}</button>
+          </div>
+        )}
 
         <div className="project-picker__list">
           {projects === null ? (
@@ -99,7 +215,7 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
                   <button
                     className="project-picker__open"
                     onClick={() => onOpen(project)}
-                    disabled={busy}
+                    disabled={busy || importing}
                   >
                     <strong>{project.name}</strong>
                     <span className="project-picker__meta">
@@ -111,7 +227,7 @@ export function ProjectPicker({ onOpen }: ProjectPickerProps) {
                     className="project-picker__delete"
                     title={`Delete "${project.name}"`}
                     onClick={() => void remove(project)}
-                    disabled={busy}
+                    disabled={busy || importing}
                   >
                     ×
                   </button>

@@ -104,6 +104,7 @@ class ProjectInfo(BaseModel):
     created_at: datetime
     updated_at: datetime
     node_count: int = 0
+    repo_path: str = ""
 
 
 class ProjectList(BaseModel):
@@ -130,6 +131,7 @@ class Project(BaseModel):
     created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime = Field(default_factory=now_utc)
     scope: str = ""
+    repo_path: str = ""
     graphs: dict[str, LayerGraph] = Field(
         default_factory=lambda: {layer: LayerGraph() for layer in LAYER_NAMES}
     )
@@ -144,6 +146,7 @@ class Project(BaseModel):
             created_at=self.created_at,
             updated_at=self.updated_at,
             node_count=node_count,
+            repo_path=self.repo_path,
         )
 
     def reports(self) -> ProjectReports:
@@ -152,3 +155,26 @@ class Project(BaseModel):
             validation=self.validation,
             tasks=self.tasks,
         )
+
+
+class ImportRequest(BaseModel):
+    path: str
+    max_files: int = 0          # 0 = use the scanner default
+
+
+class ImportStats(BaseModel):
+    files_scanned: int = 0
+    files_skipped: int = 0
+    by_language: dict[str, int] = Field(default_factory=dict)
+    by_layer: dict[str, int] = Field(default_factory=dict)
+    node_count: int = 0
+    edge_count: int = 0
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ImportResult(BaseModel):
+    project_id: str
+    root: str
+    path: str
+    stats: ImportStats
+    layers: dict[str, int] = Field(default_factory=dict)   # layer -> node count

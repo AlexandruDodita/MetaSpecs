@@ -906,7 +906,8 @@ button:disabled {
   margin-bottom: 24px;
 }
 
-.project-picker__name {
+.project-picker__name,
+.project-picker__path {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
@@ -917,7 +918,8 @@ button:disabled {
   font-size: 14px;
 }
 
-.project-picker__name:focus {
+.project-picker__name:focus,
+.project-picker__path:focus {
   outline: none;
   border-color: #4a67a8;
 }
@@ -969,6 +971,67 @@ button:disabled {
 .project-picker__empty {
   color: #8a8b93;
   font-size: 13px;
+}
+
+.project-picker__import {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.project-picker__hint {
+  font-size: 12px;
+  color: #8a8b93;
+  margin: 0 0 24px;
+}
+
+.project-picker__result {
+  position: relative;
+  background: #22252d;
+  border: 1px solid #34363f;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.project-picker__result code {
+  font-size: 12px;
+  font-family: monospace;
+  color: #8a8b93;
+  word-break: break-all;
+}
+
+.project-picker__result-line {
+  margin: 4px 0;
+  color: #8a8b93;
+}
+
+.project-picker__result-line strong {
+  color: #e6e6e6;
+}
+
+.project-picker__warnings {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #d8a657;
+  font-size: 12px;
+}
+
+.project-picker__dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: transparent;
+  border: none;
+  color: #8a8b93;
+  font-size: 14px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.project-picker__dismiss:hover {
+  color: #e6e6e6;
 }
 
 /* ---- Header project block ---- */
