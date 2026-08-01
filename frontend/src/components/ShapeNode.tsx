@@ -1,6 +1,7 @@
-import { Handle, NodeResizer, Position } from '@xyflow/react'
+import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useGraphStore } from '../store'
+import NodeSideHandles from './NodeSideHandles'
 
 function ShapeEditForm({ onDone }: { onDone: () => void }) {
   const draft = useGraphStore((s) => s.editDraft)
@@ -94,20 +95,7 @@ function ShapeNode({ id, data }: NodeProps) {
         color="#7a8bff"
         onResizeEnd={(_event, params) => updateNodeSize(activeLayer, id, params.width, params.height)}
       />
-      <Handle
-        id="in"
-        type="target"
-        position={Position.Left}
-        className="schema__handle schema__handle--table"
-        isConnectable={!isEditing}
-      />
-      <Handle
-        id="out"
-        type="source"
-        position={Position.Right}
-        className="schema__handle schema__handle--table"
-        isConnectable={!isEditing}
-      />
+      <NodeSideHandles isConnectable={!isEditing} />
       {isEditing ? (
         <ShapeEditForm onDone={() => commitEditing(activeLayer)} />
       ) : (

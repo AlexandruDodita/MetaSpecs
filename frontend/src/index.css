@@ -497,11 +497,12 @@ button:disabled {
   border: 1px solid #aebaff;
 }
 
-.schema__handle--table {
+.node-handle {
   width: 10px;
   height: 10px;
+  border-radius: 50%;
   background: #e8c14b;
-  border-color: #f5dc8a;
+  border: 1px solid #f5dc8a;
 }
 
 .react-flow__handle.schema__handle {

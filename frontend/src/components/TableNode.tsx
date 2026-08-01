@@ -5,6 +5,7 @@ import type { NodeProps } from '@xyflow/react'
 import type { Column } from '../types'
 import { useGraphStore } from '../store'
 import { COLUMN_TYPES, CONSTRAINTS } from '../schema-options'
+import NodeSideHandles from './NodeSideHandles'
 
 function TypeSelect({
   value,
@@ -233,20 +234,7 @@ function TableNode({ id }: NodeProps) {
         color="#7a8bff"
         onResizeEnd={(_event, params) => updateNodeSize(activeLayer, id, params.width, params.height)}
       />
-      <Handle
-        id="in"
-        type="target"
-        position={Position.Left}
-        className="schema__handle schema__handle--table"
-        isConnectable={!isEditing}
-      />
-      <Handle
-        id="out"
-        type="source"
-        position={Position.Right}
-        className="schema__handle schema__handle--table"
-        isConnectable={!isEditing}
-      />
+      <NodeSideHandles isConnectable={!isEditing} />
       {isEditing ? (
         <EditForm onDone={() => commitEditing(activeLayer)} />
       ) : (

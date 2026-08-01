@@ -1,4 +1,14 @@
-import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, ViewportPortal } from '@xyflow/react'
+import {
+  ReactFlow,
+  Background,
+  BackgroundVariant,
+  Controls,
+  MiniMap,
+  ViewportPortal,
+  ConnectionMode,
+  getSmoothStepPath,
+  Position,
+} from '@xyflow/react'
 import { ReactFlowProvider, useReactFlow, useStoreApi } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
@@ -11,7 +21,7 @@ import type {
 } from '@xyflow/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import '@xyflow/react/dist/style.css'
-import type { AppNode, Layer, ShapeKind } from '../types'
+import type { AppNode, Layer } from '../types'
 import { useGraphStore, useLayerNodes, useLayerEdges } from '../store'
 import type { PlaceableTool } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
@@ -19,7 +29,8 @@ import { ContextMenu } from './ContextMenu'
 import TableNode from './TableNode'
 import ShapeNode from './ShapeNode'
 import PreviewNode from './PreviewNode'
-import { DEFAULT_SIZE, MIN_SIZE, makeNode, type PlaceableKind } from '../nodeFactory'
+import { MIN_SIZE, makeNode, type PlaceableKind } from '../nodeFactory'
+import { closestSides, nodeSizeOf, pointNode, sideAnchor, type Side } from '../geometry'
 
 const nodeTypes = { table: TableNode, shape: ShapeNode, preview: PreviewNode }
 
@@ -27,14 +38,11 @@ const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set(['rect', 'circle', '
 
 const WIRE_SNAP_RADIUS = 140
 
-function nodeSizeOf(node: AppNode): { width: number; height: number } {
-  const kind: PlaceableKind =
-    node.type === 'table' ? 'table' : ((node.data as { kind?: ShapeKind }).kind ?? 'rect')
-  const fallback = DEFAULT_SIZE[kind]
-  return {
-    width: node.width ?? (node.style?.width as number | undefined) ?? fallback.width,
-    height: node.height ?? (node.style?.height as number | undefined) ?? fallback.height,
-  }
+const SIDE_POSITION: Record<Side, Position> = {
+  top: Position.Top,
+  right: Position.Right,
+  bottom: Position.Bottom,
+  left: Position.Left,
 }
 
 function nearestSnapNode(
@@ -56,41 +64,6 @@ function nearestSnapNode(
     }
   }
   return best
-}
-
-const WIRE_GAP = 4
-
-/**
- * Point where a ray from the node's centre toward `toward` crosses the node's outline,
- * pushed out by WIRE_GAP so the line stops just short of the border.
- */
-function boundaryPoint(node: AppNode, toward: { x: number; y: number }): { x: number; y: number } {
-  const { width, height } = nodeSizeOf(node)
-  const cx = node.position.x + width / 2
-  const cy = node.position.y + height / 2
-  const dx = toward.x - cx
-  const dy = toward.y - cy
-  if (dx === 0 && dy === 0) return { x: cx, y: cy }
-
-  const isCircle =
-    node.type === 'shape' && (node.data as { kind?: ShapeKind }).kind === 'circle'
-  const rx = width / 2
-  const ry = height / 2
-
-  let t: number
-  if (isCircle) {
-    // Ellipse: scale the direction vector until it lands on the outline.
-    t = 1 / Math.hypot(dx / rx, dy / ry)
-  } else {
-    // Rectangle: the first edge the ray crosses.
-    const tx = dx === 0 ? Infinity : rx / Math.abs(dx)
-    const ty = dy === 0 ? Infinity : ry / Math.abs(dy)
-    t = Math.min(tx, ty)
-  }
-
-  const len = Math.hypot(dx, dy)
-  const gap = len === 0 ? 0 : WIRE_GAP / len
-  return { x: cx + dx * (t + gap), y: cy + dy * (t + gap) }
 }
 
 interface MenuState {
@@ -417,22 +390,13 @@ function CanvasInner({ layer }: { layer: Layer }) {
     if (sourceNode) {
       const snapId = nearestSnapNode(nodes, wirePointer, wireSource)
       const snapNode = snapId ? (nodes.find((n) => n.id === snapId) ?? null) : null
-      const { width: sw, height: sh } = nodeSizeOf(sourceNode)
-      const sourceCentre = {
-        x: sourceNode.position.x + sw / 2,
-        y: sourceNode.position.y + sh / 2,
-      }
-      let sourceEnd = boundaryPoint(sourceNode, wirePointer)
-      let targetEnd: { x: number; y: number } = wirePointer
+      const farEnd = snapNode ?? pointNode(wirePointer)
+      const { sourceSide, targetSide } = closestSides(sourceNode, farEnd)
+      const sourceEnd = sideAnchor(sourceNode, sourceSide)
+      const targetEnd = snapNode ? sideAnchor(snapNode, targetSide) : wirePointer
       let ring: ReactNode = null
       if (snapNode) {
         const { width: tw, height: th } = nodeSizeOf(snapNode)
-        const targetCentre = {
-          x: snapNode.position.x + tw / 2,
-          y: snapNode.position.y + th / 2,
-        }
-        sourceEnd = boundaryPoint(sourceNode, targetCentre)
-        targetEnd = boundaryPoint(snapNode, sourceCentre)
         ring = (
           <rect
             className="wire-preview__ring"
@@ -444,6 +408,15 @@ function CanvasInner({ layer }: { layer: Layer }) {
           />
         )
       }
+      const [path] = getSmoothStepPath({
+        sourceX: sourceEnd.x,
+        sourceY: sourceEnd.y,
+        sourcePosition: SIDE_POSITION[sourceSide],
+        targetX: targetEnd.x,
+        targetY: targetEnd.y,
+        targetPosition: SIDE_POSITION[targetSide],
+        borderRadius: 8,
+      })
       wireOverlay = (
         <ViewportPortal>
           <svg
@@ -459,12 +432,9 @@ function CanvasInner({ layer }: { layer: Layer }) {
             }}
           >
             {ring}
-            <line
+            <path
               className={`wire-preview__line${snapNode ? ' wire-preview__line--snapped' : ''}`}
-              x1={sourceEnd.x}
-              y1={sourceEnd.y}
-              x2={targetEnd.x}
-              y2={targetEnd.y}
+              d={path}
             />
           </svg>
         </ViewportPortal>
@@ -489,6 +459,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
         onNodeDoubleClick={handleNodeDoubleClick}
         onSelectionChange={handleSelectionChange}
         colorMode="dark"
+        connectionMode={ConnectionMode.Loose}
         deleteKeyCode={null}
         connectionRadius={24}
         panOnDrag={tool === 'select' || tool === 'wire'}

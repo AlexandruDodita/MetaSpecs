@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ShapeKind } from './types'
 import { loadGraph, saveGraph } from './api'
 import { DEFAULT_SIZE, uid, makeNodeId, type PlaceableKind } from './nodeFactory'
+import { closestSides } from './geometry'
 
 export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'wire'
 export type PlaceableTool = 'rect' | 'circle' | 'table'
@@ -111,6 +112,18 @@ function makeEdge(layer: Layer, source: string, target: string, sourceHandle?: s
     labelBgPadding: [4, 4] as [number, number],
     labelBgBorderRadius: 4,
     labelBgStyle: { fill: '#1f2127', fillOpacity: 0.9 },
+  }
+}
+
+/** Rewrite pre-side-handle edge ids ('out'/'in') to the new four-side names. */
+function migrateEdgeHandles(graph: LayerGraph): LayerGraph {
+  return {
+    ...graph,
+    edges: graph.edges.map((e) => ({
+      ...e,
+      sourceHandle: e.sourceHandle === 'out' ? 'right' : e.sourceHandle,
+      targetHandle: e.targetHandle === 'in' ? 'left' : e.targetHandle,
+    })),
   }
 }
 
@@ -258,17 +271,31 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     })),
 
   connectNodes: (layer, source, target) =>
-    set((state) => ({
-      graphs: {
-        ...state.graphs,
-        [layer]: {
-          ...state.graphs[layer],
-          edges: [...state.graphs[layer].edges, makeEdge(layer, source, target)],
+    set((state) => {
+      const sourceNode = state.graphs[layer].nodes.find((n) => n.id === source)
+      const targetNode = state.graphs[layer].nodes.find((n) => n.id === target)
+      let sourceHandle: string | null = null
+      let targetHandle: string | null = null
+      if (sourceNode && targetNode) {
+        const { sourceSide, targetSide } = closestSides(sourceNode, targetNode)
+        sourceHandle = sourceSide
+        targetHandle = targetSide
+      }
+      return {
+        graphs: {
+          ...state.graphs,
+          [layer]: {
+            ...state.graphs[layer],
+            edges: [
+              ...state.graphs[layer].edges,
+              makeEdge(layer, source, target, sourceHandle, targetHandle),
+            ],
+          },
         },
-      },
-      dirty: { ...state.dirty, [layer]: true },
-      ...pushHistory(state, layer),
-    })),
+        dirty: { ...state.dirty, [layer]: true },
+        ...pushHistory(state, layer),
+      }
+    }),
 
   addNodeAt: (layer, node) =>
     set((state) => ({
@@ -505,13 +532,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   loadAll: async () => {
-    const [backend, db, frontend] = await Promise.all([
-      loadGraph('backend'),
-      loadGraph('db'),
-      loadGraph('frontend'),
-    ])
+    const layers: Layer[] = ['backend', 'db', 'frontend']
+    const loaded = await Promise.all(layers.map((layer) => loadGraph(layer)))
+    const graphs = Object.fromEntries(
+      layers.map((layer, i) => [layer, migrateEdgeHandles(loaded[i])]),
+    ) as Record<Layer, LayerGraph>
     set({
-      graphs: { backend, db, frontend },
+      graphs,
       past: { backend: [], db: [], frontend: [] },
       future: { backend: [], db: [], frontend: [] },
       loadSeq: get().loadSeq + 1,
