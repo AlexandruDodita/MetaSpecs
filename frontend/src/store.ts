@@ -3,7 +3,7 @@ import { applyNodeChanges, applyEdgeChanges, MarkerType } from '@xyflow/react'
 import { create } from 'zustand'
 import type { AppEdge, AppNode, EditDraft, Layer, LayerGraph, ShapeKind } from './types'
 import { loadGraph, saveGraph } from './api'
-import { uid } from './nodeFactory'
+import { DEFAULT_SIZE, uid, makeNodeId, type PlaceableKind } from './nodeFactory'
 
 export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'wire'
 export type PlaceableTool = 'rect' | 'circle' | 'table'
@@ -23,6 +23,9 @@ interface GraphState {
   graphs: Record<Layer, LayerGraph>
   activeLayer: Layer
   dirty: Record<Layer, boolean>
+  saveState: 'idle' | 'saving' | 'saved' | 'error'
+  saveError: string | null
+  loadSeq: number
   tool: Tool
   wireSource: string | null
   drawing: Drawing | null
@@ -57,6 +60,7 @@ interface GraphState {
   cancelEditing: (layer: Layer) => void
   commitEditing: (layer: Layer) => void
   persist: (layer: Layer) => Promise<void>
+  persistDirty: () => Promise<void>
   loadAll: () => Promise<void>
 }
 
@@ -81,6 +85,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   graphs: { backend: EMPTY_GRAPH, db: EMPTY_GRAPH, frontend: EMPTY_GRAPH },
   activeLayer: 'backend',
   dirty: { backend: false, db: false, frontend: false },
+  saveState: 'idle',
+  saveError: null,
+  loadSeq: 0,
   tool: 'select',
   wireSource: null,
   drawing: null,
@@ -209,10 +216,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const state = get()
     const node = state.graphs[layer].nodes.find((n) => n.id === nodeId)
     if (!node) return
+    const kind: PlaceableKind =
+      node.type === 'shape'
+        ? ((node.data as { kind?: ShapeKind }).kind ?? 'rect')
+        : 'table'
+    const width = (node.style?.width as number | undefined) ?? DEFAULT_SIZE[kind].width
     const copy: AppNode = {
       ...node,
-      id: uid('n'),
-      position: { x: node.position.x + 40, y: node.position.y + 40 },
+      id: makeNodeId(),
+      position: { x: node.position.x + width + 24, y: node.position.y },
       selected: false,
     }
     get().addNodeAt(layer, copy)
@@ -316,16 +328,35 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ editingNodeId: null, editDraft: null })
   },
 
-  commitEditing: (layer) => {
+  commitEditing: (_layer) => {
     const { editingNodeId } = get()
     if (!editingNodeId) return
     set({ editingNodeId: null, editDraft: null })
-    void get().persist(layer)
   },
 
   persist: async (layer) => {
-    await saveGraph(layer, get().graphs[layer])
-    set((state) => ({ dirty: { ...state.dirty, [layer]: false } }))
+    const snapshot = get().graphs[layer]
+    await saveGraph(layer, snapshot)
+    set((state) =>
+      state.graphs[layer] === snapshot
+        ? { dirty: { ...state.dirty, [layer]: false } }
+        : {},
+    )
+  },
+
+  persistDirty: async () => {
+    const { dirty } = get()
+    const layers = (Object.keys(dirty) as Layer[]).filter((l) => dirty[l])
+    if (layers.length === 0) return
+    set({ saveState: 'saving' })
+    try {
+      for (const layer of layers) await get().persist(layer)
+      const stillDirty = Object.values(get().dirty).some(Boolean)
+      set({ saveState: stillDirty ? 'saving' : 'saved', saveError: null })
+    } catch (e) {
+      set({ saveState: 'error', saveError: e instanceof Error ? e.message : String(e) })
+      throw e
+    }
   },
 
   loadAll: async () => {
@@ -334,7 +365,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       loadGraph('db'),
       loadGraph('frontend'),
     ])
-    set({ graphs: { backend, db, frontend } })
+    set({ graphs: { backend, db, frontend }, loadSeq: get().loadSeq + 1 })
   },
 }))
 

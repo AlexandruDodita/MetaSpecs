@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Layer, TaskList, ValidationReport } from './types'
 import { useGraphStore } from './store'
 import { GraphCanvas } from './components/GraphCanvas'
 import { Toolbar } from './components/Toolbar'
+import { useAutosave } from './useAutosave'
 import { runCompile, runValidate } from './api'
 
 const LAYERS: { key: Layer; label: string }[] = [
@@ -20,9 +21,12 @@ const SEVERITY_LABEL: Record<string, string> = {
 function App() {
   const activeLayer = useGraphStore((s) => s.activeLayer)
   const setActiveLayer = useGraphStore((s) => s.setActiveLayer)
-  const persist = useGraphStore((s) => s.persist)
   const dirty = useGraphStore((s) => s.dirty)
+  const saveState = useGraphStore((s) => s.saveState)
+  const saveError = useGraphStore((s) => s.saveError)
   const loadAll = useGraphStore((s) => s.loadAll)
+
+  useAutosave()
 
   const [scope, setScope] = useState('')
   const [report, setReport] = useState<ValidationReport | null>(null)
@@ -34,16 +38,12 @@ function App() {
     loadAll().catch((e: Error) => setError(e.message))
   }, [loadAll])
 
-  const saveDirtyLayers = useCallback(async () => {
-    const { dirty, persist } = useGraphStore.getState()
-    const layers = (Object.keys(dirty) as Layer[]).filter((l) => dirty[l])
-    for (const l of layers) await persist(l)
-  }, [])
+  const hasDirty = Object.values(dirty).some(Boolean)
 
   const save = async () => {
     setError(null)
     try {
-      await persist(activeLayer)
+      await useGraphStore.getState().persistDirty()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -53,7 +53,7 @@ function App() {
     setBusy('validate')
     setError(null)
     try {
-      await saveDirtyLayers()
+      await useGraphStore.getState().persistDirty()
       setReport(await runValidate(scope))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -66,7 +66,7 @@ function App() {
     setBusy('compile')
     setError(null)
     try {
-      await saveDirtyLayers()
+      await useGraphStore.getState().persistDirty()
       setTasks(await runCompile(scope))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -92,9 +92,17 @@ function App() {
           ))}
         </div>
         <div className="header-actions">
-          <button onClick={save} disabled={!dirty[activeLayer]}>
-            Save
+          <button onClick={save} disabled={!hasDirty}>
+            Save all
           </button>
+          {saveState !== 'idle' && (
+            <span
+              className={`save-status save-status--${saveState}`}
+              title={saveState === 'error' ? saveError ?? undefined : undefined}
+            >
+              {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Save failed'}
+            </span>
+          )}
         </div>
       </header>
 

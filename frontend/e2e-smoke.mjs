@@ -12,6 +12,20 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
 
+// Pre-clear every layer via the API before the app ever mounts. If a prior
+// run's leftover nodes are still on disk, the very first render triggers an
+// auto-fitView zoom (see GraphCanvas's fittedKeyRef effect) before this
+// script gets a chance to clear anything through the UI — that skews the
+// viewport transform and makes every later pixel-coordinate drag/selection
+// in this script non-deterministic across repeated runs. Clearing server
+// state first keeps every layer's initial viewport at the identity
+// transform, matching what a truly fresh backend would give us.
+for (const layer of ['backend', 'db', 'frontend']) {
+  await page.request.post(`http://localhost:8000/api/graph/${layer}`, {
+    data: { nodes: [], edges: [] },
+  })
+}
+
 await page.goto(URL, { waitUntil: 'networkidle' })
 await page.waitForSelector('.react-flow__pane')
 
@@ -93,6 +107,97 @@ const revertedLabel = await page.locator('.schema__name').first().innerText()
 check('Escape reverts the edited label', revertedLabel !== 'zzz_should_revert', `label="${revertedLabel}"`)
 
 check('no uncaught page errors', errors.length === 0, errors.join(' | '))
+
+// ==== New checks for this batch ====
+
+const clickTab = async (label) => {
+  await page.locator('.tab', { hasText: label }).click()
+  await page.waitForTimeout(150)
+}
+const clearActiveLayer = async () => {
+  await page.locator('.toolbar__btn--danger').last().click()
+  await page.waitForTimeout(200)
+}
+const saveAllBtn = () => page.locator('.header-actions button', { hasText: 'Save all' })
+
+// ---- 1: autosave persists to the backend without clicking Save ----
+await clickTab('Database')
+await clearActiveLayer()
+await addTableAt(500, 400)
+await page.waitForTimeout(1500)
+const saveStatusText = await page.locator('.save-status').innerText().catch(() => '')
+check('autosave: header shows "Saved"', saveStatusText === 'Saved', `text="${saveStatusText}"`)
+const dbResp = await page.request.get('http://localhost:8000/api/graph/db')
+const dbJson = await dbResp.json()
+check('autosave: server has 1 node for db layer', dbJson.nodes?.length === 1, `nodes=${dbJson.nodes?.length}`)
+
+// ---- 2: dirty indicator clears once autosave has landed ----
+const activeTabDots = await page.locator('.tab--active .tab__dot').count()
+check('dirty dot clears on active tab after autosave', activeTabDots === 0, `dots=${activeTabDots}`)
+const saveAllDisabled = await saveAllBtn().isDisabled()
+check('"Save all" button disabled once nothing is dirty', saveAllDisabled, `disabled=${saveAllDisabled}`)
+
+// ---- 3: dragging a node snaps its final position to the 10px grid ----
+const dragNode = page.locator('.react-flow__node').first()
+const box = await dragNode.boundingBox()
+const startX = box.x + box.width / 2
+const startY = box.y + box.height / 2
+await page.mouse.move(startX, startY)
+await page.mouse.down()
+await page.mouse.move(startX + 37, startY + 23, { steps: 8 })
+await page.mouse.up()
+await page.waitForTimeout(1500)
+const dbResp2 = await page.request.get('http://localhost:8000/api/graph/db')
+const dbJson2 = await dbResp2.json()
+const draggedPos = dbJson2.nodes?.[0]?.position
+check(
+  'dragged node position snaps to 10px grid',
+  !!draggedPos && draggedPos.x % 10 === 0 && draggedPos.y % 10 === 0,
+  `position=${JSON.stringify(draggedPos)}`,
+)
+
+// ---- 4: plain left-drag (no Shift) rubber-band selects on the select tool ----
+await clearActiveLayer()
+await addTableAt(300, 250)
+await addTableAt(650, 250)
+await page.mouse.move(150, 150)
+await page.mouse.down()
+await page.mouse.move(1390, 700, { steps: 12 })
+await page.mouse.up()
+await page.waitForTimeout(250)
+const plainDragSelected = await page.locator('.react-flow__node.selected').count()
+check('plain left-drag (no Shift) selects both nodes', plainDragSelected === 2, `selected=${plainDragSelected}`)
+
+// ---- 5: duplicate places the copy beside the original, no overlap ----
+await clearActiveLayer()
+await addTableAt(400, 300)
+await page.locator('.react-flow__node').first().click()
+await page.waitForTimeout(150)
+await page.locator('.toolbar__btn[title="Duplicate selected node"]').click()
+await page.waitForTimeout(300)
+const dupNodes = page.locator('.react-flow__node')
+const dupCount = await dupNodes.count()
+let dupOverlap = true
+if (dupCount === 2) {
+  const b0 = await dupNodes.nth(0).boundingBox()
+  const b1 = await dupNodes.nth(1).boundingBox()
+  dupOverlap = b0.x < b1.x + b1.width && b1.x < b0.x + b0.width
+}
+check('duplicate creates 2 nodes', dupCount === 2, `count=${dupCount}`)
+check('duplicated node does not overlap the original', !dupOverlap, `overlap=${dupOverlap}`)
+
+// ---- 6: adding a node to an already-loaded, now-empty layer must not yank the viewport ----
+await clickTab('Frontend')
+await clearActiveLayer()
+const viewportBefore = await page.locator('.react-flow__viewport').getAttribute('style')
+await addTableAt(500, 400)
+await page.waitForTimeout(1500)
+const viewportAfter = await page.locator('.react-flow__viewport').getAttribute('style')
+check(
+  'no viewport auto-fit/jump after adding the first node',
+  viewportBefore === viewportAfter,
+  `before="${viewportBefore}" after="${viewportAfter}"`,
+)
 
 await browser.close()
 const failed = results.filter((r) => !r.pass)

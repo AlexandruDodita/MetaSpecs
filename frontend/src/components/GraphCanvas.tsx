@@ -66,19 +66,17 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const updateDrawing = useGraphStore((s) => s.updateDrawing)
   const { screenToFlowPosition, fitView } = useReactFlow()
   const storeApi = useStoreApi()
-  const fittedRef = useRef(false)
-  const dirty = useGraphStore((s) => s.dirty[layer])
+  const loadSeq = useGraphStore((s) => s.loadSeq)
+  const fittedKeyRef = useRef('')
 
   useEffect(() => {
-    fittedRef.current = false
-  }, [layer])
-
-  useEffect(() => {
-    if (nodes.length === 0 || fittedRef.current || dirty) return
-    fittedRef.current = true
+    const fittedKey = `${layer}:${loadSeq}`
+    if (fittedKeyRef.current === fittedKey) return
+    fittedKeyRef.current = fittedKey
+    if (nodes.length === 0) return
     const timer = window.setTimeout(() => void fitView({ padding: 0.2 }), 0)
     return () => window.clearTimeout(timer)
-  }, [nodes.length, fitView, dirty])
+  }, [nodes.length, fitView, layer, loadSeq])
 
   const [menu, setMenu] = useState<MenuState | null>(null)
 
@@ -301,9 +299,11 @@ function CanvasInner({ layer }: { layer: Layer }) {
         colorMode="dark"
         deleteKeyCode={['Backspace', 'Delete']}
         connectionRadius={24}
-        panOnDrag={tool === 'select' || tool === 'wire'}
+        panOnDrag={tool === 'select' ? [1] : tool === 'wire'}
         panOnScroll
         selectionOnDrag={tool === 'select'}
+        snapToGrid
+        snapGrid={[10, 10]}
         zoomOnDoubleClick={tool === 'select'}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
