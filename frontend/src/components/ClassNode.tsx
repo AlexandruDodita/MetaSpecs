@@ -374,6 +374,11 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
                   {isExpanded && (
                     <>
                       {m.notes && <div className="method-notes">{m.notes}</div>}
+                      {(m.calls ?? []).length > 0 && (
+                        <div className="method-calls">
+                          <span className="tree-calls__glyph">⇢</span> {(m.calls ?? []).join(', ')}
+                        </div>
+                      )}
                       <MethodSteps id={id} method={m} />
                     </>
                   )}

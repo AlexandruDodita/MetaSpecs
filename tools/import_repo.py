@@ -73,6 +73,10 @@ COLUMN_W = 400
 ROW_STEP = 220
 FIRST_ROW = 260  # below the 240-tall container node
 MODULE_STYLE = {"width": 260, "height": 180}
+# File nodes must not be emitted smaller than their CSS minimum (320x200 in
+# index.css): React Flow's box tracks node.style, so a smaller style leaves
+# the drag/resize box smaller than the rendered object.
+FILE_STYLE = {"width": 320, "height": 240}
 CONTAINER_STYLE = {"width": 320, "height": 240}
 
 TS_EXPORT = re.compile(
@@ -632,6 +636,81 @@ def _arrow_params(text: str, line_start: int, line_end: int) -> str:
     return _ts_params(_extract_group(text, i))
 
 
+def _func_paren(text: str, name_end: int) -> int:
+    """Position of the '(' opening a function's params, or -1."""
+    i = name_end
+    while i < len(text) and text[i] in " \t":
+        i += 1
+    if i < len(text) and text[i] == "<":
+        depth = 0
+        while i < len(text):
+            if text[i] == "<":
+                depth += 1
+            elif text[i] == ">":
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    break
+            i += 1
+    while i < len(text) and text[i] in " \t":
+        i += 1
+    return i if i < len(text) and text[i] == "(" else -1
+
+
+def _ts_body_span(text: str, decl_start: int, paren: int | None) -> tuple[int, int] | None:
+    """(start, end) of a function/class-method body, or an arrow's braces.
+
+    `paren` is the '(' position for regular declarations; None means an
+    arrow (`=> { ... }`, braces required).
+    """
+    if paren is not None:
+        j = paren + 1 + len(_extract_group(text, paren))
+        if j < len(text) and text[j] == ")":
+            j += 1
+    else:
+        eq = text.find("=>", decl_start)
+        if eq == -1:
+            return None
+        j = eq + 2
+        while j < len(text) and text[j] in " \t":
+            j += 1
+        if j >= len(text):
+            return None
+        # Arrow bodies may be brace blocks or parenthesised expressions.
+        if text[j] == "{":
+            return (decl_start, j + 2 + len(_balanced(text, j, "{", "}")))
+        if text[j] == "(":
+            return (decl_start, j + 1 + len(_balanced(text, j, "(", ")")))
+        return None
+    while j < len(text) and text[j] in " \t":
+        j += 1
+    if j < len(text) and text[j] == ":":
+        # Skip a TS return type annotation between params and the body.
+        j += 1
+        depth = 0
+        angle = 0
+        while j < len(text):
+            c = text[j]
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+            elif c == "<":
+                angle += 1
+            elif c == ">":
+                angle -= 1
+            elif c == "{" and depth <= 0 and angle <= 0:
+                break
+            j += 1
+        if j >= len(text):
+            return None
+    while j < len(text) and text[j] in " \t":
+        j += 1
+    if j < len(text) and text[j] == "{":
+        return (decl_start, j + 2 + len(_balanced(text, j, "{", "}")))
+    return None
+
+
 def _func_params(text: str, name_end: int) -> str:
     """Params for `export function NAME...`, skipping generics first."""
     i = name_end
@@ -662,6 +741,7 @@ def _parse_ts(
     entries: list[tuple[str, str, str, str, str]] = []  # (name, params, vis, owner, note)
     exports: dict[str, str] = {}
     class_methods: dict[str, set[str]] = {}
+    spans: dict[str, tuple[int, int]] = {}
     export_decls: list[tuple[int, Any]] = []
     for m in TS_EXPORT.finditer(text):
         export_decls.append((m.start(), (m.group(1), m.group(2))))
@@ -678,12 +758,20 @@ def _parse_ts(
         if kind == "function":
             entries.append((name, _func_params(text, m.end()), _visibility(name), "", note))
             exports[name] = "func"
+            paren = _func_paren(text, m.end())
+            if paren >= 0:
+                span = _ts_body_span(text, m.start(), paren)
+                if span:
+                    spans[name] = span
         elif kind in ("const", "let", "var"):
             eq = line.find("=")
             arrow = eq != -1 and ("=>" in line or "(" in line[eq:])
             if arrow:
                 entries.append((name, _arrow_params(text, line_start, line_end), _visibility(name), "", note))
                 exports[name] = "func"
+                span = _ts_body_span(text, m.start(), None)
+                if span:
+                    spans[name] = span
             else:
                 fields.append({"name": name, "visibility": _visibility(name), "type": "const"})
         elif kind == "class":
@@ -712,6 +800,9 @@ def _parse_ts(
                             method_docs.get(bm.start(), ""),
                         )
                     )
+                    span = _ts_body_span(text, body_start + 1 + bm.start(), body_start + bm.end())
+                    if span:
+                        spans[f"{name}.{mname}"] = span
         else:
             fields.append({"name": name, "visibility": _visibility(name), "type": kind})
     ids = _unique_ids([e[0] for e in entries])
@@ -736,7 +827,7 @@ def _parse_ts(
     for m in TS_EXPORT.finditer(text):
         if m.group(1) == "class":
             notes["classes"][m.group(2)] = docmap.get(("class", m.group(2)), "")
-    aux = {"exports": exports, "classes": class_methods, "imports": _ts_imports(text)}
+    aux = {"exports": exports, "classes": class_methods, "imports": _ts_imports(text), "spans": spans}
     return fields, methods, notes, aux
 
 
@@ -1494,11 +1585,29 @@ def _resolve_py_call(
     return _py_target(mod, sym, chain[1:], module_path, registry)
 
 
+def _callee_display(target_id: str, callee: str) -> str:
+    """Human-readable callee for a resolved target node: 'storage.read_graph'
+    for a module function, 'Project.info' / 'Project' for class targets."""
+    if "#" in target_id:
+        cls = target_id.rsplit("#", 1)[1]
+        return callee if callee == cls else f"{cls}.{callee}"
+    stem = target_id.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
+    if stem.endswith(".py"):
+        stem = stem[:-3]
+    return f"{stem}.{callee}"
+
+
 def _collect_py_calls(
-    m: Module, aux: dict[str, Any], registry: dict[str, Any], calls: dict[tuple[str, str], set[str]]
+    m: Module,
+    aux: dict[str, Any],
+    registry: dict[str, Any],
+    calls: dict[tuple[str, str], set[str]],
+    method_calls: dict[tuple[str, str], set[str]],
 ) -> None:
     aliases = aux["aliases"]
-    for owner, _fname, fnode in aux["functions"]:
+    for owner, fname, fnode in aux["functions"]:
+        key = f"{owner}.{fname}" if owner else fname
+        callees: set[str] = set()
         caller = m.node_id if not owner else f"{m.node_id}#{owner}"
         for node in ast.walk(fnode):
             if not isinstance(node, ast.Call):
@@ -1512,6 +1621,9 @@ def _collect_py_calls(
             target_id, callee = hit
             if target_id != caller:
                 calls.setdefault((caller, target_id), set()).add(callee)
+                callees.add(_callee_display(target_id, callee))
+        if callees:
+            method_calls.setdefault((m.path, key), set()).update(callees)
 
 
 def _resolve_ts_spec(base_dir: str, spec: str, registry: dict[str, Any]) -> str | None:
@@ -1540,14 +1652,26 @@ def _ts_target(path: str, sym: str, registry: dict[str, Any]) -> tuple[str, str]
 
 
 def _collect_ts_calls(
-    m: Module, aux: dict[str, Any], registry: dict[str, Any], calls: dict[tuple[str, str], set[str]]
+    m: Module,
+    aux: dict[str, Any],
+    registry: dict[str, Any],
+    calls: dict[tuple[str, str], set[str]],
+    method_calls: dict[tuple[str, str], set[str]],
 ) -> None:
     imports = aux["imports"]
+    spans = aux.get("spans", {})
     stripped = _strip_ts_text(m.source)
 
-    def add(target_id: str, callee: str) -> None:
-        if target_id != m.node_id:
-            calls.setdefault((m.node_id, target_id), set()).add(callee)
+    def add(target_id: str, callee: str, position: int) -> None:
+        if target_id == m.node_id:
+            return
+        calls.setdefault((m.node_id, target_id), set()).add(callee)
+        key = None
+        for name, (s, e) in spans.items():
+            if s <= position < e and (key is None or s > spans[key][0]):
+                key = name
+        if key is not None:
+            method_calls.setdefault((m.path, key), set()).add(_callee_display(target_id, callee))
 
     for mm in TS_CALL.finditer(stripped):
         base, sym = mm.group(1), mm.group(2)
@@ -1566,7 +1690,7 @@ def _collect_ts_calls(
             if cls is not None and sym in cls["methods"]:
                 hit = (cls["node"], sym)
         if hit is not None:
-            add(*hit)
+            add(*hit, mm.start())
     for mm in TS_BARE_CALL.finditer(stripped):
         name = mm.group(1)
         if name in TS_CALL_SKIP:
@@ -1580,7 +1704,7 @@ def _collect_ts_calls(
             continue
         hit = _ts_target(path, name, registry)
         if hit is not None:
-            add(*hit)
+            add(*hit, mm.start())
 
 
 def _build_call_registry(mods: list[Module], parsed: dict[str, Any]) -> dict[str, Any]:
@@ -1650,7 +1774,7 @@ def file_node(m: Module, pos: tuple[int, int], fields: list[dict], methods: list
             "fields": fields,
             "methods": methods,
         },
-        "style": MODULE_STYLE,
+        "style": FILE_STYLE,
     }
 
 
@@ -1689,6 +1813,20 @@ def build_layer(
     parsed: dict[str, tuple] = {}
     for m in sorted(mods):
         parsed[m.path] = parse_module(m)
+
+    calls: dict[tuple[str, str], set[str]] = {}
+    method_calls: dict[tuple[str, str], set[str]] = {}
+    registry = _build_call_registry(mods, parsed)
+    for m in sorted(mods):
+        aux = parsed[m.path][3]
+        if m.lang == "python":
+            _collect_py_calls(m, aux, registry, calls, method_calls)
+        elif m.lang in ("typescript", "javascript", "vue", "svelte"):
+            _collect_ts_calls(m, aux, registry, calls, method_calls)
+
+    def with_method_calls(path: str, mm: dict[str, Any]) -> dict[str, Any]:
+        hits = method_calls.get((path, mm["name"]))
+        return {**mm, "calls": sorted(hits)} if hits else mm
 
     def class_names(path: str) -> list[str]:
         return sorted(parsed[path][2]["classes"].keys())
@@ -1732,8 +1870,10 @@ def build_layer(
         cls_methods: dict[str, list[dict[str, Any]]] = {c: [] for c in notes["classes"]}
         for mm in methods:
             if mm["owner"]:
-                cls_methods.setdefault(mm["owner"], []).append(_strip_owner(mm))
-        file_methods = [_strip_owner(mm) for mm in methods if not mm["owner"]]
+                cls_methods.setdefault(mm["owner"], []).append(
+                    with_method_calls(m.path, _strip_owner(mm))
+                )
+        file_methods = [with_method_calls(m.path, _strip_owner(mm)) for mm in methods if not mm["owner"]]
         nodes.append(file_node(m, positions[m.node_id], fields, file_methods, notes))
         for cls in sorted(cls_methods):
             nodes.append(
@@ -1758,14 +1898,6 @@ def build_layer(
         deps = _module_deps(m, modules_by_path, layer, skipped, deps_registry)
         for target in sorted(deps):
             edges.append(_make_edge(m.node_id, target, "depends-on", "in-process", edge_ids))
-    calls: dict[tuple[str, str], set[str]] = {}
-    registry = _build_call_registry(mods, parsed)
-    for m in sorted(mods):
-        aux = parsed[m.path][3]
-        if m.lang == "python":
-            _collect_py_calls(m, aux, registry, calls)
-        elif m.lang in ("typescript", "javascript", "vue", "svelte"):
-            _collect_ts_calls(m, aux, registry, calls)
     for source, target in sorted(calls):
         edges.append(
             _make_edge(source, target, "calls", "", edge_ids, label=_call_label(calls[(source, target)]))

@@ -487,3 +487,26 @@
   white-space: pre-wrap;
   cursor: default;
 }
+
+.tree-calls,
+.method-calls {
+  padding: 2px 8px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #e0b155;
+  background: rgba(255, 157, 92, 0.06);
+  border-left: 2px solid #ff9d5c;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.method-calls {
+  margin: 0 10px;
+}
+
+.tree-calls__glyph {
+  color: #ff9d5c;
+  font-weight: 700;
+}

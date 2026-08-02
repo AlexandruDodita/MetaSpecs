@@ -186,8 +186,30 @@ button:disabled {
 }
 
 .canvas {
+  position: relative;
   width: 100%;
   height: 100%;
+}
+
+.canvas__filter {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+}
+
+.canvas__filter select {
+  background: #26272e;
+  color: #c8d3f0;
+  border: 1px solid #4a67a8;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+.canvas__filter select:focus {
+  outline: none;
+  border-color: #7a8bff;
 }
 
 .canvas__hint {

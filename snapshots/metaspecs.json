@@ -121,8 +121,8 @@
             "methods": []
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -193,8 +193,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -651,13 +651,17 @@
                 "returnType": "TaskList",
                 "params": "project_id, body",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "compile.compile_tasks",
+                  "storage.read_project"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -703,8 +707,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -739,7 +743,10 @@
                 "returnType": "None",
                 "params": "project_id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.read_project"
+                ]
               },
               {
                 "id": "get_graph",
@@ -749,7 +756,10 @@
                 "returnType": "LayerGraph",
                 "params": "project_id, layer",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.read_graph"
+                ]
               },
               {
                 "id": "save_graph",
@@ -759,13 +769,16 @@
                 "returnType": "LayerGraph",
                 "params": "project_id, layer, graph",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.write_graph"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -796,13 +809,16 @@
                 "returnType": "ImportResult",
                 "params": "project_id, body",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "importer.import_into_project"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -827,7 +843,10 @@
                 "returnType": "",
                 "params": "project_id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.read_project"
+                ]
               },
               {
                 "id": "list_projects",
@@ -837,7 +856,10 @@
                 "returnType": "ProjectList",
                 "params": "",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.list_projects"
+                ]
               },
               {
                 "id": "create_project",
@@ -847,7 +869,10 @@
                 "returnType": "ProjectInfo",
                 "params": "body",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.create_project"
+                ]
               },
               {
                 "id": "get_project",
@@ -867,7 +892,10 @@
                 "returnType": "None",
                 "params": "project_id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.delete_project"
+                ]
               },
               {
                 "id": "get_reports",
@@ -882,8 +910,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -908,13 +936,17 @@
                 "returnType": "ValidationReport",
                 "params": "project_id, body",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.read_project",
+                  "validate.validate"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -945,7 +977,10 @@
                 "returnType": "dict",
                 "params": "project_id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.read_graph"
+                ]
               },
               {
                 "id": "compile_tasks",
@@ -955,7 +990,12 @@
                 "returnType": "TaskList",
                 "params": "project_id, scope",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "llm.chat_json",
+                  "storage.write_scope",
+                  "storage.write_tasks"
+                ]
               },
               {
                 "id": "infer_files",
@@ -970,8 +1010,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -996,13 +1036,19 @@
                 "returnType": "ImportResult",
                 "params": "project_id, raw_path, max_files",
                 "steps": [],
-                "notes": "Scan a local checkout and write its graphs into the project."
+                "notes": "Scan a local checkout and write its graphs into the project.",
+                "calls": [
+                  "import_repo.build",
+                  "models.now_utc",
+                  "storage.read_project",
+                  "storage.write_project"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -1128,8 +1174,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -1250,7 +1296,10 @@
                 "returnType": "None",
                 "params": "",
                 "steps": [],
-                "notes": "One-time import of pre-project graphs (data/backend.graph.json, \u2026).\n\nRuns before listing so legacy files surface as an \"Untitled\" project\ninstead of being stranded by the new per-project layout."
+                "notes": "One-time import of pre-project graphs (data/backend.graph.json, \u2026).\n\nRuns before listing so legacy files surface as an \"Untitled\" project\ninstead of being stranded by the new per-project layout.",
+                "calls": [
+                  "Project"
+                ]
               },
               {
                 "id": "_make_project_id",
@@ -1300,7 +1349,10 @@
                 "returnType": "Project",
                 "params": "name",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "Project"
+                ]
               },
               {
                 "id": "delete_project",
@@ -1340,7 +1392,10 @@
                 "returnType": "LayerGraph",
                 "params": "project_id, layer, graph",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "models.now_utc"
+                ]
               },
               {
                 "id": "write_validation",
@@ -1375,8 +1430,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -1427,7 +1482,10 @@
                 "returnType": "dict",
                 "params": "project_id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "storage.read_graph"
+                ]
               },
               {
                 "id": "validate",
@@ -1437,13 +1495,18 @@
                 "returnType": "ValidationReport",
                 "params": "project_id, scope",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "llm.chat_json",
+                  "storage.write_scope",
+                  "storage.write_validation"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -1729,8 +1792,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -1981,8 +2044,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -2070,6 +2133,11 @@
               },
               {
                 "name": "MODULE_STYLE",
+                "visibility": "public",
+                "type": "const"
+              },
+              {
+                "name": "FILE_STYLE",
                 "visibility": "public",
                 "type": "const"
               },
@@ -2471,6 +2539,26 @@
                 "notes": "Params for `export const NAME = (...) =>`; '' if not a clean arrow."
               },
               {
+                "id": "_func_paren",
+                "kind": "",
+                "name": "_func_paren",
+                "visibility": "private",
+                "returnType": "int",
+                "params": "text, name_end",
+                "steps": [],
+                "notes": "Position of the '(' opening a function's params, or -1."
+              },
+              {
+                "id": "_ts_body_span",
+                "kind": "",
+                "name": "_ts_body_span",
+                "visibility": "private",
+                "returnType": "tuple[int, int] | None",
+                "params": "text, decl_start, paren",
+                "steps": [],
+                "notes": "(start, end) of a function/class-method body, or an arrow's braces.\n\n`paren` is the '(' position for regular declarations; None means an\narrow (`=> { ... }`, braces required)."
+              },
+              {
                 "id": "_func_params",
                 "kind": "",
                 "name": "_func_params",
@@ -2811,12 +2899,22 @@
                 "notes": ""
               },
               {
+                "id": "_callee_display",
+                "kind": "",
+                "name": "_callee_display",
+                "visibility": "private",
+                "returnType": "str",
+                "params": "target_id, callee",
+                "steps": [],
+                "notes": "Human-readable callee for a resolved target node: 'storage.read_graph'\nfor a module function, 'Project.info' / 'Project' for class targets."
+              },
+              {
                 "id": "_collect_py_calls",
                 "kind": "",
                 "name": "_collect_py_calls",
                 "visibility": "private",
                 "returnType": "None",
-                "params": "m, aux, registry, calls",
+                "params": "m, aux, registry, calls, method_calls",
                 "steps": [],
                 "notes": ""
               },
@@ -2846,7 +2944,7 @@
                 "name": "_collect_ts_calls",
                 "visibility": "private",
                 "returnType": "None",
-                "params": "m, aux, registry, calls",
+                "params": "m, aux, registry, calls, method_calls",
                 "steps": [],
                 "notes": ""
               },
@@ -2993,8 +3091,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5013,8 +5111,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5123,13 +5221,21 @@
                 "returnType": "",
                 "params": "",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "api.ts.getProject",
+                  "api.ts.getProjectReports",
+                  "api.ts.runCompile",
+                  "api.ts.runValidate",
+                  "store.ts.useGraphStore",
+                  "useAutosave.ts.useAutosave"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5269,8 +5375,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5316,7 +5422,10 @@
                 "returnType": "",
                 "params": "draft",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "nodeFactory.ts.uid"
+                ]
               },
               {
                 "id": "StepRow",
@@ -5336,7 +5445,11 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "nodeFactory.ts.makeLogicStep",
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "ClassView",
@@ -5346,7 +5459,11 @@
                 "returnType": "",
                 "params": "data",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.isExpanded",
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "ClassNode",
@@ -5356,13 +5473,16 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5423,8 +5543,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5455,13 +5575,16 @@
                 "returnType": "",
                 "params": "initialPath",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "api.ts.listDirs"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5486,7 +5609,10 @@
                 "returnType": "",
                 "params": "nodeId",
                 "steps": [],
-                "notes": "Classes wired to the file (membership = any edge in either direction)."
+                "notes": "Classes wired to the file (membership = any edge in either direction).",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "FileEditForm",
@@ -5506,7 +5632,11 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.isExpanded",
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "FileNode",
@@ -5516,13 +5646,16 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5588,7 +5721,10 @@
                 "returnType": "",
                 "params": "nodes, pointer, excludeId",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "geometry.ts.nodeSizeOf"
+                ]
               },
               {
                 "id": "isEditableTarget",
@@ -5608,7 +5744,13 @@
                 "returnType": "",
                 "params": "layer",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.isExpanded",
+                  "store.ts.useGraphStore",
+                  "store.ts.useLayerEdges",
+                  "store.ts.useLayerNodes"
+                ]
               },
               {
                 "id": "GraphCanvas",
@@ -5623,8 +5765,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5649,7 +5791,10 @@
                 "returnType": "",
                 "params": "text",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "highlight.ts.tokenize"
+                ]
               },
               {
                 "id": "VisibilityBadge",
@@ -5664,8 +5809,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5706,8 +5851,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5737,8 +5882,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5768,8 +5913,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5810,13 +5955,19 @@
                 "returnType": "",
                 "params": "onOpen",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "api.ts.createProject",
+                  "api.ts.deleteProject",
+                  "api.ts.importRepo",
+                  "api.ts.listProjects"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5871,7 +6022,11 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.isExpanded",
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "ServiceNode",
@@ -5881,13 +6036,16 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -5912,7 +6070,10 @@
                 "returnType": "",
                 "params": "onDone",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "ShapeView",
@@ -5922,7 +6083,10 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "ShapeNode",
@@ -5932,13 +6096,16 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6003,7 +6170,10 @@
                 "returnType": "",
                 "params": "onDone",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "SchemaView",
@@ -6013,7 +6183,10 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "TableNode",
@@ -6023,13 +6196,16 @@
                 "returnType": "",
                 "params": "id",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6065,13 +6241,18 @@
                 "returnType": "",
                 "params": "",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useCanRedo",
+                  "store.ts.useCanUndo",
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6096,7 +6277,10 @@
                 "returnType": "",
                 "params": "nodeId",
                 "steps": [],
-                "notes": "Classes wired to a node (membership = any edge in either direction)."
+                "notes": "Classes wired to a node (membership = any edge in either direction).",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               },
               {
                 "id": "TreeNotes",
@@ -6141,8 +6325,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6233,8 +6417,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6365,8 +6549,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6385,8 +6569,8 @@
             "methods": []
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6411,7 +6595,12 @@
                 "returnType": "",
                 "params": "ctx",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "MenuAction",
+                  "MenuSeparator",
+                  "nodeFactory.ts.makeNode"
+                ]
               },
               {
                 "id": "buildNodeMenu",
@@ -6421,7 +6610,13 @@
                 "returnType": "",
                 "params": "ctx, nodeId",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "MenuAction",
+                  "MenuSeparator",
+                  "MenuSubmenu",
+                  "store.ts.isExpanded"
+                ]
               },
               {
                 "id": "buildEdgeMenu",
@@ -6431,13 +6626,17 @@
                 "returnType": "",
                 "params": "ctx, edgeId",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "MenuAction",
+                  "MenuSubmenu"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6472,8 +6671,8 @@
             "methods": []
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6738,8 +6937,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6769,8 +6968,8 @@
             "methods": []
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -6876,7 +7075,10 @@
                 "returnType": "",
                 "params": "layer, source, target, sourceHandle, targetHandle",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "nodeFactory.ts.uid"
+                ]
               },
               {
                 "id": "patchEdge",
@@ -6906,7 +7108,14 @@
                 "returnType": "",
                 "params": "",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "api.ts.loadGraph",
+                  "api.ts.saveGraph",
+                  "geometry.ts.closestSides",
+                  "nodeFactory.ts.makeNodeId",
+                  "nodeFactory.ts.placeableKindOf"
+                ]
               },
               {
                 "id": "useLayerNodes",
@@ -6961,8 +7170,8 @@
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -7147,8 +7356,8 @@
             "methods": []
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -7173,13 +7382,16 @@
                 "returnType": "",
                 "params": "delayMs",
                 "steps": [],
-                "notes": ""
+                "notes": "",
+                "calls": [
+                  "store.ts.useGraphStore"
+                ]
               }
             ]
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         },
         {
@@ -7198,8 +7410,8 @@
             "methods": []
           },
           "style": {
-            "width": 260,
-            "height": 180
+            "width": 320,
+            "height": 240
           }
         }
       ],

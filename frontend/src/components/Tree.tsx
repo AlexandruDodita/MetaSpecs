@@ -29,6 +29,7 @@ export function TreeMethodRow({ method, depth }: { method: Method; depth: number
   const [open, setOpen] = useState(false)
   const steps = method.steps ?? []
   const notes = method.notes ?? ''
+  const calls = method.calls ?? []
   return (
     <div className="tree-branch">
       <div
@@ -49,6 +50,11 @@ export function TreeMethodRow({ method, depth }: { method: Method; depth: number
       </div>
       {open && (
         <div className="tree-branch">
+          {calls.length > 0 && (
+            <div className="tree-calls" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>
+              <span className="tree-calls__glyph">⇢</span> {calls.join(', ')}
+            </div>
+          )}
           <TreeNotes text={notes} depth={depth + 1} />
           {steps.length === 0 && <div className="tree-empty" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>no steps</div>}
           {steps.map((s) => (

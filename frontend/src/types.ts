@@ -66,6 +66,8 @@ export interface Method {
   steps: LogicStep[]
   /** Docstring / JSDoc extracted by the importer (or hand-written). */
   notes?: string
+  /** What this function calls, e.g. "storage.read_graph" (importer-derived). */
+  calls?: string[]
 }
 
 export interface ClassNodeData {

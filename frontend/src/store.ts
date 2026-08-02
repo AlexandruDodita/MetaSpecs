@@ -85,6 +85,8 @@ interface GraphState {
   tool: Tool
   wireSource: string | null
   drawing: Drawing | null
+  /** UI-only edge filter: 'all' or one of the edge kinds. Not persisted. */
+  edgeFilter: EdgeKind | 'all'
   editingNodeId: string | null
   editDraft: EditDraft | null
   selectedNodeIds: string[]
@@ -107,6 +109,7 @@ interface GraphState {
   setActiveLayer: (layer: Layer) => void
   setTool: (tool: Tool) => void
   setWireSource: (nodeId: string | null) => void
+  setEdgeFilter: (filter: EdgeKind | 'all') => void
   setSelectedNodeIds: (ids: string[]) => void
   setSelectedEdgeIds: (ids: string[]) => void
   deleteSelection: (layer: Layer) => void
@@ -202,6 +205,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   tool: 'select',
   wireSource: null,
   drawing: null,
+  edgeFilter: 'all',
   editingNodeId: null,
   editDraft: null,
   selectedNodeIds: [],
@@ -242,6 +246,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setTool: (tool) => set({ tool, wireSource: null, drawing: null }),
 
   setWireSource: (nodeId) => set({ wireSource: nodeId }),
+
+  setEdgeFilter: (filter) => set({ edgeFilter: filter }),
 
   setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
 

@@ -143,7 +143,15 @@ Stored graph JSON is serializable React Flow v12 state:
   migration. **Container membership does NOT consult `kind`**: any class wired
   to a file, or any file/class wired to a service, belongs to it, in either
   direction. The importer's `calls` edges carry the called names in `label`.
-- Edge stroke colour is derived from `kind` in `GraphCanvas.tsx` (`EDGE_STROKE`).
+- Edge stroke colour is derived from `kind` in `GraphCanvas.tsx`
+  (`EDGE_STROKE`; `calls` is orange `#ff9d5c` and rendered `animated` in the
+  derived `renderEdges`, never persisted). A `.canvas__filter` select
+  (`store.edgeFilter`, UI-only) hides every edge kind except the chosen one —
+  "calls (workflow)" isolates the workflow view.
+- `tools/import_repo.py` emits file nodes at `FILE_STYLE` (320×240), never
+  smaller than the `.file-node` CSS minimum — React Flow's drag/resize box
+  tracks `node.style`, so a smaller style would render the box below the
+  object's size.
 
 ## Snapshot and drift
 
@@ -182,10 +190,13 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   Python uses the AST (`import a.b as x`, `from a.b import c as d`, dotted
   chains, `self`/`cls` skipped); TS uses regex over comment/string-stripped
   source where the callee base must be an import (bare imported names and
-  `alias.sym(`). Calls inside the same module never produce edges — the file's
-  tree already shows them. Resolution is conservative: anything ambiguous
-  yields nothing. Edge labels list the called names (sorted, capped at 40
-  chars); one edge per (caller, callee) pair.
+  `alias.sym(`), with calls attributed to the enclosing function body span.
+  Calls inside the same module never produce edges — the file's tree already
+  shows them. Resolution is conservative: anything ambiguous yields nothing.
+  Edge labels list the called names (sorted, capped at 40 chars); one edge per
+  (caller, callee) pair. Each method also carries `calls: [...]` — the
+  resolved callees as display strings (`storage.read_graph`,
+  `Project.info`), shown when the method row is expanded.
 - Parameter lists: `_ts_params(group, last=True)` for type-first languages
   (Java, C#), default for `name: Type` and `name Type` (TS, Kotlin, Go).
 - SQL is the exception to module-per-file: `CREATE TABLE` emits `table` nodes

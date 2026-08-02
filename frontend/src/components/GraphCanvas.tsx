@@ -22,6 +22,7 @@ import type {
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import '@xyflow/react/dist/style.css'
 import type { AppNode, EdgeKind, Layer } from '../types'
+import { EDGE_KINDS } from '../types'
 import { useGraphStore, useLayerNodes, useLayerEdges, isExpanded } from '../store'
 import type { PlaceableTool } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
@@ -46,7 +47,7 @@ const nodeTypes = {
 
 const EDGE_STROKE: Record<EdgeKind, string> = {
   contains: '#8b8f9a',
-  calls: '#7a8bff',
+  calls: '#ff9d5c',
   implements: '#4fd18b',
   reads: '#e0b155',
   writes: '#e07a7a',
@@ -126,6 +127,8 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const tool = useGraphStore((s) => s.tool)
   const wireSource = useGraphStore((s) => s.wireSource)
   const drawing = useGraphStore((s) => s.drawing)
+  const edgeFilter = useGraphStore((s) => s.edgeFilter)
+  const setEdgeFilter = useGraphStore((s) => s.setEdgeFilter)
   const setWireSource = useGraphStore((s) => s.setWireSource)
   const connectNodes = useGraphStore((s) => s.connectNodes)
   const addNodeAt = useGraphStore((s) => s.addNodeAt)
@@ -188,12 +191,14 @@ function CanvasInner({ layer }: { layer: Layer }) {
     const renderNodes = nodes.filter((n) => !hidden.has(n.id))
     const renderEdges = edges
       .filter((e) => !hidden.has(e.source) && !hidden.has(e.target))
+      .filter((e) => edgeFilter === 'all' || (e.kind ?? 'depends-on') === edgeFilter)
       .map((e) => ({
         ...e,
+        animated: (e.kind ?? 'depends-on') === 'calls',
         style: { ...e.style, stroke: EDGE_STROKE[e.kind ?? 'depends-on'] },
       }))
     return { renderNodes, renderEdges }
-  }, [nodes, edges, expanded])
+  }, [nodes, edges, expanded, edgeFilter])
 
   useEffect(() => {
     const fittedKey = `${layer}:${loadSeq}`
@@ -561,6 +566,20 @@ function CanvasInner({ layer }: { layer: Layer }) {
         {wireOverlay}
       </ReactFlow>
       {menu && <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={closeMenu} />}
+      <div className="canvas__filter">
+        <select
+          value={edgeFilter}
+          title="Edge filter — show only one kind of connection (workflow view)"
+          onChange={(e) => setEdgeFilter(e.target.value as EdgeKind | 'all')}
+        >
+          <option value="all">All edges</option>
+          {EDGE_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {k === 'calls' ? 'calls (workflow)' : k}
+            </option>
+          ))}
+        </select>
+      </div>
       {drawing && tool !== 'select' && (
         <div className="canvas__hint">
           {Math.round(drawing.w)} × {Math.round(drawing.h)}
