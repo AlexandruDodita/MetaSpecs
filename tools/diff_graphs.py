@@ -144,12 +144,14 @@ def compare_node(old_node, new_node, include_layout):
     diff = {}
     if old_node.get("type") != new_node.get("type"):
         diff["type"] = {"old": old_node.get("type"), "new": new_node.get("type")}
-    for key in ("label", "path", "description"):
+    for key in ("label", "path", "description", "notes"):
         ov, nv = o_data.get(key, ""), n_data.get(key, "")
         if ov != nv:
             diff[key] = {"old": ov, "new": nv}
     # Either side, so a node retyped to/from class still reports its members.
-    if "class" in (old_node.get("type"), new_node.get("type")):
+    if "class" in (old_node.get("type"), new_node.get("type")) or "file" in (
+        old_node.get("type"), new_node.get("type"),
+    ):
         for mkey in ("fields", "methods"):
             o_list = o_data.get(mkey) or []
             n_list = n_data.get(mkey) or []
@@ -274,7 +276,7 @@ def node_line(n):
 
 def diff_lines(diff):
     out = []
-    for key in ("type", "label", "path", "description") + LAYOUT_FIELDS:
+    for key in ("type", "label", "path", "description", "notes") + LAYOUT_FIELDS:
         if key in diff:
             d = diff[key]
             out.append(f"{key}: {fmt_value(d['old'])} → {fmt_value(d['new'])}")

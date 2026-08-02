@@ -19,25 +19,26 @@ import { loadGraph, saveGraph } from './api'
 import { DEFAULT_SIZE, uid, makeNodeId, placeableKindOf } from './nodeFactory'
 import { closestSides } from './geometry'
 
-export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'class' | 'service' | 'wire'
-export type PlaceableTool = 'rect' | 'circle' | 'table' | 'class' | 'service'
+export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'class' | 'service' | 'file' | 'wire'
+export type PlaceableTool = 'rect' | 'circle' | 'table' | 'class' | 'service' | 'file'
 
-/** Expansion defaults differ by node kind: classes start expanded, services collapsed. */
-export const EXPANDED_BY_DEFAULT: Record<'class' | 'service', boolean> = {
+/** Expansion defaults: classes and files open, containers (services) closed. */
+export const EXPANDED_BY_DEFAULT: Record<'class' | 'service' | 'file', boolean> = {
   class: true,
   service: false,
+  file: true,
 }
 
 /** The single reading of the shared `expanded` map. */
 export const isExpanded = (
   expanded: Record<string, boolean>,
   nodeId: string,
-  kind: 'class' | 'service',
+  kind: 'class' | 'service' | 'file',
 ): boolean => expanded[nodeId] ?? EXPANDED_BY_DEFAULT[kind]
 
 /** Live drag-to-draw rectangle in flow coordinates. */
 export interface Drawing {
-  kind: ShapeKind | 'table' | 'class' | 'service'
+  kind: ShapeKind | 'table' | 'class' | 'service' | 'file'
   originX: number
   originY: number
   x: number
@@ -90,11 +91,16 @@ interface GraphState {
   selectedEdgeIds: string[]
   /** UI-only: service nodeId → expanded. Not persisted, not in undo history. */
   expanded: Record<string, boolean>
-  /** UI-only: class nodeId → expanded method id (null = none). Not persisted. */
+  /** UI-only: class/file nodeId → expanded method id (null = none). Not persisted. */
   expandedMethod: Record<string, string | null>
-  toggleExpanded: (nodeId: string, kind: 'class' | 'service') => void
+  toggleExpanded: (nodeId: string, kind: 'class' | 'service' | 'file') => void
   setExpandedMethod: (nodeId: string, methodId: string | null) => void
-  updateMethodSteps: (layer: Layer, classNodeId: string, methodId: string, steps: LogicStep[]) => void
+  updateMethodSteps: (
+    layer: Layer,
+    nodeId: string,
+    methodId: string,
+    steps: LogicStep[],
+  ) => void
   undo: (layer: Layer) => void
   redo: (layer: Layer) => void
   setProject: (project: ProjectInfo | null) => void
@@ -493,17 +499,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       ...pushHistory(state, layer),
     })),
 
-  updateMethodSteps: (layer, classNodeId, methodId, steps) => {
+  updateMethodSteps: (layer, nodeId, methodId, steps) => {
     const state = get()
-    const node = state.graphs[layer].nodes.find((n) => n.id === classNodeId)
-    if (!node || node.type !== 'class') return
+    const node = state.graphs[layer].nodes.find((n) => n.id === nodeId)
+    if (!node || (node.type !== 'class' && node.type !== 'file')) return
     const data = node.data as ClassNodeData
     const methods = (data.methods ?? []).map((m) =>
       m.id === methodId
         ? { ...m, steps: steps.map((s) => ({ ...s })) }
         : m,
     )
-    get().updateNodeData(layer, classNodeId, { methods })
+    get().updateNodeData(layer, nodeId, { methods })
   },
 
   updateEdgeLabel: (layer, edgeId, label) =>
@@ -620,6 +626,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         description: editDraft.description,
       })
     } else if (node.type === 'service') {
+      get().updateNodeData(layer, editingNodeId, {
+        label: editDraft.label,
+        path: editDraft.path,
+        description: editDraft.description,
+      })
+    } else if (node.type === 'file') {
       get().updateNodeData(layer, editingNodeId, {
         label: editDraft.label,
         path: editDraft.path,

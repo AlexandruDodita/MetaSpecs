@@ -32,8 +32,9 @@ agent-execution loop (MVP stops at tasks.json).
   is on `sys.path` and `tools/` is an implicit namespace package).
 - `frontend/` — Vite app (run everything with `npm --prefix frontend ...`).
   `src/types.ts` shared types; `src/store.ts` all Zustand graph state (active
-  `project`, graphs, active layer, tools `select|rect|circle|table|wire`, live
-  drag-to-draw rect, edit mode, selection); `src/nodeFactory.ts` node builders
+  `project`, graphs, active layer, tools
+  `select|rect|circle|table|class|service|file|wire`, live drag-to-draw rect,
+  edit mode, selection); `src/nodeFactory.ts` node builders
   (default sizes, per-kind data); `src/api.ts` fetch helpers (all endpoints are
   project-scoped); `src/components/GraphCanvas.tsx` one `<ReactFlow>` per layer
   (drag-to-draw preview, context menus, wire tool, dark mode);
@@ -51,15 +52,21 @@ agent-execution loop (MVP stops at tasks.json).
   `src/components/ClassNode.tsx` class object (fields + methods rows with
   visibility badges, TS-highlighted signatures; click a method to expand a
   tree of logic steps `step|branch|call` with inline label edit, reorder and
-  delete; edit form for label/fields/methods), `src/components/ServiceNode.tsx`
-  service/controller container — membership comes from WIRES (any edge to a
-  class); collapsed body lists the wired classes, expanded body is a
-  collapsible tree (classes → methods → steps),
+  delete; edit form for label/fields/methods; class and method docstrings show
+  as `notes` blocks), `src/components/ServiceNode.tsx` service/controller
+  container — membership comes from WIRES (any edge to a file or class);
+  collapsed body lists the wired files/classes, expanded body is a collapsible
+  tree (files → classes → methods → steps),
+  `src/components/FileNode.tsx` file/module container — module-level functions
+  live in its own `methods`, classes wire in; expanded shows its functions and
+  wired classes in a tree, collapsed lists the wired classes,
+  `src/components/Tree.tsx` shared tree rows (`TreeFileRow`/`TreeClassRow`/
+  `TreeMethodRow`, each expands to docstring notes then children),
   `src/components/Highlighted.tsx` TS-like token highlighting +
   `VisibilityBadge` (from `src/highlight.ts` tokenizer; tree/step styles in
-  `src/logic.css`); node types are `table|shape|class|service|preview`,
-  tools `select|rect|circle|table|class|service|wire` (class: backend+frontend
-  layers, service: backend only);
+  `src/logic.css`); node types are `table|shape|class|service|file|preview`,
+  tools `select|rect|circle|table|class|service|file|wire` (class/file:
+  backend+frontend layers, service: backend only);
   `src/components/ContextMenu.tsx` + `src/menu/` (OOP menu model:
   `MenuAction`/`MenuSubmenu`/`MenuSeparator`, builders per context in
   `builders.ts`); `src/components/Toolbar.tsx` left mini sidebar reusing the
@@ -81,8 +88,13 @@ agent-execution loop (MVP stops at tasks.json).
 - `tools/` — snapshot/drift logic, stdlib only. `import_repo.py` is the single
   repo scanner: it is both a CLI (`--root`, `--out`, `--push <project-id>`,
   `--max-files`) and the library the backend's import endpoint calls. Never copy
-  scanning logic into `backend/`. `diff_graphs.py` compares two graphs and exits
-  1 on drift. See "Snapshot and drift" below.
+  scanning logic into `backend/`. It emits one `file:` node per module
+  (module-level functions as `methods`, module docstring as `notes`), one
+  `class:` node per Python/TS class (`<prefix>:<path>#<ClassName>` ids, like SQL
+  tables), wires `pkg → file → class` with `contains`, and derives `calls`
+  edges between nodes from statically resolvable call sites (Python AST,
+  TS/JSDoc regex). `diff_graphs.py` compares two graphs and exits 1 on drift.
+  See "Snapshot and drift" below.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
   `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
 
@@ -128,8 +140,9 @@ Stored graph JSON is serializable React Flow v12 state:
 - Edge `kind` is one of `contains|calls|implements|reads|writes|depends-on`,
   declared on `GraphEdge` and defaulting to `depends-on`; `protocol` is free
   text. Edges stored before this existed read back as `depends-on` — there is no
-  migration. **Service membership does NOT consult `kind`**: any class wired to
-  a service still belongs to it, in either direction.
+  migration. **Container membership does NOT consult `kind`**: any class wired
+  to a file, or any file/class wired to a service, belongs to it, in either
+  direction. The importer's `calls` edges carry the called names in `label`.
 - Edge stroke colour is derived from `kind` in `GraphCanvas.tsx` (`EDGE_STROKE`).
 
 ## Snapshot and drift
@@ -139,9 +152,10 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
 
 - `tools/import_repo.py` must stay **byte-deterministic**: same tree in, same
   JSON out. No timestamps, no uuids, sorted everything. Node ids are derived
-  from the path (`py:backend/services/storage.py`, `pkg:backend/services`)
-  precisely so a re-import matches the previous one. The gate before any change
-  lands: scan twice into two files and `cmp` them.
+  from the path (`py:backend/services/storage.py`, `pkg:backend/services`,
+  `py:backend/models.py#Project` for classes) precisely so a re-import matches
+  the previous one. The gate before any change lands: scan twice into two files
+  and `cmp` them.
 - The scanner is **repo-agnostic** — it discovers files with `os.walk`, prunes
   `SKIP_DIRS`, honours `.gitignore` (own matcher; `fnmatch` is wrong here
   because its `*` crosses `/`), and infers a layer per file with `infer_layer`
@@ -151,8 +165,27 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
 - Languages live in exactly two registries, `PARSERS` and `DEPS`, both keyed by
   the language name from `LANGUAGES`. Adding a language means adding entries
   there — never a second `if lang == ...` chain. Every parser has the signature
-  `(path, source) -> (fields, methods)`; every deps function
+  `(path, source) -> (fields, methods, notes, aux)`: methods carry `owner`
+  (class name or `''` for module-level, stripped before persisting) and `notes`
+  (docstring), `notes` is `{module, classes}` docstrings, `aux` is
+  language-specific (Python AST + import aliases, TS exports/imports) and feeds
+  the call-graph pass. Every deps function
   `(path, source) -> list[list[str]]` (candidate groups, first hit wins).
+- Docstrings become `notes`: Python triple-quote via `ast.get_docstring`
+  (module → file node, class → class node, function → method), TS/JS only
+  `/** ... */` JSDoc blocks directly above a declaration (first block before
+  the first declaration is the module note). Non-Python/TS languages return
+  empty notes and put every method on the file node.
+- The call-graph pass (kind `calls`, same layer only) resolves each call site
+  to a class node (callee method/class) or file node (module-level function)
+  via the per-layer registry `{rel path: {classes, funcs}}` and import aliases.
+  Python uses the AST (`import a.b as x`, `from a.b import c as d`, dotted
+  chains, `self`/`cls` skipped); TS uses regex over comment/string-stripped
+  source where the callee base must be an import (bare imported names and
+  `alias.sym(`). Calls inside the same module never produce edges — the file's
+  tree already shows them. Resolution is conservative: anything ambiguous
+  yields nothing. Edge labels list the called names (sorted, capped at 40
+  chars); one edge per (caller, callee) pair.
 - Parameter lists: `_ts_params(group, last=True)` for type-first languages
   (Java, C#), default for `name: Type` and `name Type` (TS, Kotlin, Go).
 - SQL is the exception to module-per-file: `CREATE TABLE` emits `table` nodes
@@ -178,8 +211,10 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   later scan.
 - `tools/diff_graphs.py` matches nodes by id first, then by non-empty
   `data.path` — a node added by hand in the UI has a random id and would never
-  id-match its imported counterpart. Those show under "reconciled by path".
-  `position`/`style`/`measured` are ignored unless `--include-layout`.
+  id-match its imported counterpart. Those show under "reconciled by path"
+  (class nodes share their module's `path`, so only the first claims it).
+  `position`/`style`/`measured` are ignored unless `--include-layout`; node and
+  method `notes` docstrings are compared like any other field.
 
 - Project files live at `data/projects/<id>.json`; the `app: "metaspecs"`
   marker (plus `version`) is what identifies a file as one of our projects —
@@ -230,9 +265,10 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   (`kind: rect|circle`, `label`, `items[]`). Keep both in sync when changing.
 - `constraint` is free-text (e.g. "PRIMARY KEY", "NOT NULL"), never an enum;
   the edit-mode dropdowns in `TableNode.tsx` are suggestions only.
-- An imported layer looks empty on first open: modules land inside `pkg:`
-  service containers, and `GraphCanvas` hides a class while every service it is
-  wired to is collapsed. Expand a service to bring its classes onto the canvas.
+- An imported layer looks empty on first open: files land inside `pkg:`
+  service containers, and `GraphCanvas` hides a node while every container it
+  is wired to is collapsed. Expand a service to bring its files onto the
+  canvas; files start expanded, so their classes and `calls` edges follow.
 - `api.ts`'s `request()` prefers FastAPI's JSON `detail` over
   `status statusText`, so route handlers should raise `HTTPException` with a
   message worth showing a user — it reaches the screen verbatim.
@@ -273,34 +309,37 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   `NodeChange[]`/`Node[]` at that boundary (`as unknown as ...` where TS
   disagrees).
 - `nodeTypes = { table: TableNode, shape: ShapeNode, class: ClassNode,
-  service: ServiceNode, preview: PreviewNode }`;
+  service: ServiceNode, file: FileNode, preview: PreviewNode }`;
   the custom node reads `activeLayer` from the store so its actions target
   the right layer.
-- Object hierarchy is a TREE, not nested canvases: classes belong to services
-  via wires (edges, either direction); a service's object area (collapsed)
-  lists wired classes and its expanded body is a collapsible tree
-  (classes → methods → steps). Method logic lives as `Method.steps` (ordered
-  `LogicStep[]`), written through `updateMethodSteps` (store). Expansion is
-  UI-only store state (`expanded`/`expandedMethod`), never persisted.
-  `ServiceNode` derives membership by subscribing to the layer's edges.
-- Tree hiding: `GraphCanvas` filters the rendered graph — a class wired to a
-  service is hidden from the canvas while every connected service is
-  collapsed (it lives in the service's object area instead); edges touching
-  hidden nodes are filtered too. The store keeps the nodes; the wire tool's
-  snap targets the filtered set.
-- The `expanded` map is shared by services and classes but their DEFAULTS
-  differ (`EXPANDED_BY_DEFAULT` in `store.ts`: classes expanded, services
-  collapsed). Read it only via `isExpanded(expanded, nodeId, kind)` and toggle
-  only via `toggleExpanded(nodeId, kind)` — an inline `expanded[id]` reads the
+- Object hierarchy is a TREE, not nested canvases: classes belong to files and
+  files belong to services via wires (edges, either direction); a service's
+  object area (collapsed) lists wired files/classes and its expanded body is a
+  collapsible tree (files → classes → methods → steps). Method logic lives as
+  `Method.steps` (ordered `LogicStep[]`), written through `updateMethodSteps`
+  (store; works on class AND file nodes). Expansion is UI-only store state
+  (`expanded`/`expandedMethod`), never persisted. `ServiceNode`/`FileNode`
+  derive membership by subscribing to the layer's edges.
+- Tree hiding: `GraphCanvas` filters the rendered graph — a node is hidden
+  from the canvas while every container (service or file) it is wired to is
+  collapsed or itself hidden (a file whose services are all collapsed is
+  hidden, which hides its classes in turn); edges touching hidden nodes are
+  filtered too. The store keeps the nodes; the wire tool's snap targets the
+  filtered set.
+- The `expanded` map is shared by services, classes and files but their
+  DEFAULTS differ (`EXPANDED_BY_DEFAULT` in `store.ts`: classes and files
+  expanded, services collapsed). Read it only via
+  `isExpanded(expanded, nodeId, kind)` and toggle only via
+  `toggleExpanded(nodeId, kind)` — an inline `expanded[id]` reads the
   wrong default and makes the first toggle a no-op.
-- `ClassNode`/`ServiceNode` read their data from React Flow's `data` prop
-  plus the store for membership/expansion; top-level edit forms use the store
-  draft machinery (`editingNodeId`/`editDraft`).
+- `ClassNode`/`ServiceNode`/`FileNode` read their data from React Flow's
+  `data` prop plus the store for membership/expansion; top-level edit forms
+  use the store draft machinery (`editingNodeId`/`editDraft`).
 - Table edit state lives in the store (`editingNodeId`/`editDraft`), NOT in
   node data — the stored graph JSON must stay serializable.
 - Clicks inside the edit form must `stopPropagation()` or React Flow's
   `onNodeClick` will commit+close the form mid-edit.
-- Tool hotkeys V/R/C/T/K/S/W are bound in `GraphCanvas` (ignored while typing
+- Tool hotkeys V/R/C/T/K/S/F/W are bound in `GraphCanvas` (ignored while typing
   in inputs); edges get labels via right-click → "Label edge…".
 - `<ReactFlow colorMode="dark">` handles controls/minimap theming; extra dark
   overrides live in `src/index.css`.

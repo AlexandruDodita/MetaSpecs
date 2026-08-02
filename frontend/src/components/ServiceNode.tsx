@@ -1,22 +1,25 @@
-import { useState } from 'react'
 import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
-import type { AppNode, ClassNodeData, Method, ServiceNodeData } from '../types'
+import type { AppNode, ClassNodeData, FileNodeData, ServiceNodeData } from '../types'
 import { useGraphStore, isExpanded } from '../store'
-import { Highlighted, VisibilityBadge } from './Highlighted'
+import { TreeClassRow, TreeFileRow } from './Tree'
 import NodeSideHandles from './NodeSideHandles'
 import { NodeMeta } from './NodeMeta'
 
-/** Classes wired to the service (membership = any edge in either direction). */
-function useMemberClasses(nodeId: string): AppNode[] {
+/** Files and classes wired to the service (membership = any edge in either direction). */
+function useMembers(nodeId: string): { files: AppNode[]; classes: AppNode[] } {
   const layer = useGraphStore((s) => s.activeLayer)
   const nodes = useGraphStore((s) => s.graphs[layer].nodes)
   const edges = useGraphStore((s) => s.graphs[layer].edges)
   const members = edges
     .filter((e) => e.source === nodeId || e.target === nodeId)
     .map((e) => (e.source === nodeId ? e.target : e.source))
-  return nodes.filter((n) => members.includes(n.id) && n.type === 'class')
+  const memberNodes = nodes.filter((n) => members.includes(n.id))
+  return {
+    files: memberNodes.filter((n) => n.type === 'file'),
+    classes: memberNodes.filter((n) => n.type === 'class'),
+  }
 }
 
 function ServiceEditForm({
@@ -59,75 +62,22 @@ function ServiceEditForm({
   )
 }
 
-/** Method row inside the service tree. */
-function TreeMethodRow({ method, depth }: { method: Method; depth: number }) {
-  const [open, setOpen] = useState(false)
-  const steps = method.steps ?? []
-  return (
-    <div className="tree-branch">
-      <div
-        className="tree-row tree-row--method"
-        style={{ paddingLeft: 10 + depth * 16 }}
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen(!open)
-        }}
-      >
-        <span className="tree-row__chevron">{open ? '▾' : '▸'}</span>
-        <VisibilityBadge visibility={method.visibility} />
-        <Highlighted
-          text={`${method.name}(${method.params}): ${method.returnType}`}
-          className="tree-row__sig"
-        />
-        <span className="tree-row__count">{steps.length} step{steps.length === 1 ? '' : 's'}</span>
-      </div>
-      {open && (
-        <div className="tree-branch">
-          {steps.length === 0 && <div className="tree-empty" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>no steps</div>}
-          {steps.map((s) => (
-            <div key={s.id} className="tree-row tree-row--step" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>
-              <span className="tree-row__kind" title={s.kind}>•</span>
-              <Highlighted text={s.label || '(empty step)'} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** Class row inside the service tree. */
-function TreeClassRow({ node, depth }: { node: AppNode; depth: number }) {
-  const [open, setOpen] = useState(false)
-  const data = (node.data ?? {}) as Partial<ClassNodeData>
+/** One line in the collapsed member list: a file or a class with its counts. */
+function MemberRow({ node }: { node: AppNode }) {
+  const isFile = node.type === 'file'
+  const data = (node.data ?? {}) as Partial<ClassNodeData | FileNodeData>
   const methods = data.methods ?? []
+  const label = data.label ?? (isFile ? 'file' : 'class')
   return (
-    <div className="tree-branch">
-      <div
-        className="tree-row tree-row--class"
-        style={{ paddingLeft: 10 + depth * 16 }}
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen(!open)
-        }}
-      >
-        <span className="tree-row__chevron">{open ? '▾' : '▸'}</span>
-        <span className="tree-row__name">{data.label ?? 'class'}</span>
-        <span className="tree-row__badge">CLASS</span>
-        <span className="tree-row__count">
-          {methods.length} method{methods.length === 1 ? '' : 's'}
-        </span>
-      </div>
-      {open && (
-        <div className="tree-branch">
-          {methods.length === 0 && (
-            <div className="tree-empty" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>no methods</div>
-          )}
-          {methods.map((m) => (
-            <TreeMethodRow key={m.id} method={m} depth={depth + 1} />
-          ))}
-        </div>
-      )}
+    <div className="service-node__member" onClick={(e) => e.stopPropagation()}>
+      <span className="service-node__member-name">{label}</span>
+      <span className="service-node__member-meta">
+        {isFile
+          ? methods.length > 0
+            ? `${methods.length} func${methods.length === 1 ? '' : 's'}`
+            : 'file'
+          : `${methods.length} method${methods.length === 1 ? '' : 's'}`}
+      </span>
     </div>
   )
 }
@@ -135,10 +85,11 @@ function TreeClassRow({ node, depth }: { node: AppNode; depth: number }) {
 function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
   const expanded = useGraphStore((s) => isExpanded(s.expanded, id, 'service'))
   const toggleExpanded = useGraphStore((s) => s.toggleExpanded)
-  const members = useMemberClasses(id)
+  const { files, classes } = useMembers(id)
 
   const label = data.label ?? 'service'
   const path = data.path ?? ''
+  const members = [...files, ...classes]
 
   const toggle = (e: { stopPropagation: () => void }) => {
     e.stopPropagation()
@@ -151,7 +102,8 @@ function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
         <span className="service-node__name">{label}</span>
         <span className="service-node__badge">SERVICE</span>
         <span className="service-node__count">
-          {members.length} class{members.length === 1 ? '' : 'es'}
+          {files.length} file{files.length === 1 ? '' : 's'}
+          {classes.length > 0 ? ` · ${classes.length} class${classes.length === 1 ? '' : 'es'}` : ''}
         </span>
         <button className="service-node__toggle" onClick={toggle}>
           {expanded ? '▾' : '▸'}
@@ -162,30 +114,24 @@ function ServiceView({ id, data }: { id: string; data: ServiceNodeData }) {
         <div className="service-node__tree">
           {members.length === 0 && (
             <div className="service-node__empty">
-              no classes wired — connect a class with the wire tool
+              no files or classes wired — connect one with the wire tool
             </div>
           )}
-          {members.map((member) => (
+          {files.map((member) => (
+            <TreeFileRow key={member.id} node={member} depth={0} />
+          ))}
+          {classes.map((member) => (
             <TreeClassRow key={member.id} node={member} depth={0} />
           ))}
         </div>
       ) : (
         <div className="service-node__members">
           {members.length === 0 && (
-            <div className="service-node__empty">no classes wired</div>
+            <div className="service-node__empty">no files or classes wired</div>
           )}
-          {members.map((member) => {
-            const mdata = (member.data ?? {}) as Partial<ClassNodeData>
-            const methods = mdata.methods ?? []
-            return (
-              <div key={member.id} className="service-node__member" onClick={(e) => e.stopPropagation()}>
-                <span className="service-node__member-name">{mdata.label ?? 'class'}</span>
-                <span className="service-node__member-meta">
-                  {methods.length} method{methods.length === 1 ? '' : 's'}
-                </span>
-              </div>
-            )
-          })}
+          {members.map((member) => (
+            <MemberRow key={member.id} node={member} />
+          ))}
         </div>
       )}
     </>

@@ -2,7 +2,7 @@ import type { Edge, Node } from '@xyflow/react'
 
 export type Layer = 'backend' | 'db' | 'frontend'
 
-export type NodeType = 'table' | 'shape' | 'class' | 'service' | 'preview'
+export type NodeType = 'table' | 'shape' | 'class' | 'service' | 'file' | 'preview'
 
 export type ShapeKind = 'rect' | 'circle'
 
@@ -64,6 +64,8 @@ export interface Method {
   returnType: string
   params: string
   steps: LogicStep[]
+  /** Docstring / JSDoc extracted by the importer (or hand-written). */
+  notes?: string
 }
 
 export interface ClassNodeData {
@@ -72,6 +74,7 @@ export interface ClassNodeData {
   methods: Method[]
   path?: string
   description?: string
+  notes?: string
   [key: string]: unknown
 }
 
@@ -82,8 +85,19 @@ export interface ServiceNodeData {
   [key: string]: unknown
 }
 
+/** A source file: module-level functions live in `methods`, classes wire in. */
+export interface FileNodeData {
+  label: string
+  fields: Field[]
+  methods: Method[]
+  path?: string
+  description?: string
+  notes?: string
+  [key: string]: unknown
+}
+
 export interface PreviewNodeData {
-  kind: 'table' | ShapeKind | 'class' | 'service'
+  kind: 'table' | ShapeKind | 'class' | 'service' | 'file'
   [key: string]: unknown
 }
 
@@ -92,6 +106,7 @@ export type GraphNodeData =
   | ShapeNodeData
   | ClassNodeData
   | ServiceNodeData
+  | FileNodeData
   | PreviewNodeData
   | Record<string, never>
 

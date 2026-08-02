@@ -81,15 +81,125 @@ TS_EXPORT = re.compile(
     re.MULTILINE,
 )
 TS_IMPORT = re.compile(r"(?:from|import)\s*['\"]([^'\"]+)['\"]")
+TS_IMPORT_STMT = re.compile(r"^\s*import\s+(?:type\s+)?(.*?)\s+from\s+['\"]([^'\"]+)['\"]", re.MULTILINE)
 TS_CLASS_METHOD = re.compile(
     r"^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:async\s+)?"
     r"([A-Za-z_$][\w$]*)\s*\(",
     re.MULTILINE,
 )
-TS_SKIP_KEYWORDS = {"if", "for", "while", "switch", "catch", "return", "function"}
+TS_SKIP_KEYWORDS = {"if", "for", "while", "switch", "catch", "return", "function", "super", "this"}
+TS_CALL = re.compile(r"([A-Za-z_$][\w$]*)\s*\.\s*([A-Za-z_$][\w$]*)\s*\(")
+TS_BARE_CALL = re.compile(r"(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(")
+TS_CALL_SKIP = {
+    "if", "for", "while", "switch", "catch", "return", "new", "typeof",
+    "instanceof", "delete", "void", "await", "yield", "in", "of", "do",
+    "else", "case", "function", "class", "import", "export", "extends",
+    "throw", "debugger", "satisfies", "as", "from", "super",
+}
+JS_DOC = re.compile(r"/\*\*([\s\S]*?)\*/")
 TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte")
 TS_INDEX_FILES = ("/index.ts", "/index.tsx", "/index.js", "/index.jsx")
 SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>(.*?)</script>", re.DOTALL)
+
+
+def _clean_jsdoc(body: str) -> str:
+    lines = []
+    for raw in body.splitlines():
+        ln = raw.strip().lstrip("*").strip()
+        if ln:
+            lines.append(ln)
+    return "\n".join(lines).strip()
+
+
+def _pair_docs(text: str, decls: list[tuple[int, Any]]) -> dict[Any, str]:
+    """Map each declaration start to the /** */ block directly above it.
+
+    decls are (position, key) pairs; the block must end before the position
+    with only whitespace in between. Keys may be any hashable (an int start
+    for class-body methods, a (kind, name) tuple for top-level exports).
+    """
+    blocks = [(m.start(), m.end(), _clean_jsdoc(m.group(1))) for m in JS_DOC.finditer(text)]
+    out: dict[Any, str] = {}
+    bi = 0
+    for start, key in sorted(decls):
+        best = None
+        while bi < len(blocks) and blocks[bi][1] <= start:
+            best = blocks[bi]
+            bi += 1
+        if best is not None and not text[best[1]:start].strip():
+            out[key] = best[2]
+    return out
+
+
+def _ts_module_note(text: str, first_decl_start: int | None) -> str:
+    if first_decl_start is None:
+        return ""
+    first = JS_DOC.search(text)
+    if first is None or first.end() > first_decl_start:
+        return ""
+    return _clean_jsdoc(first.group(1))
+
+
+def _ts_imports(text: str) -> dict[str, tuple[str, str]]:
+    """{bound name: (spec, kind)} for relative imports; kind: namespace|named."""
+    imports: dict[str, tuple[str, str]] = {}
+    for m in TS_IMPORT_STMT.finditer(text):
+        body, spec = m.group(1).strip(), m.group(2)
+        if not spec.startswith("."):
+            continue
+        if body.startswith("*"):
+            star = re.match(r"\*\s*as\s+([A-Za-z_$][\w$]*)", body)
+            if star:
+                imports[star.group(1)] = (spec, "namespace")
+            continue
+        if body.startswith("{"):
+            inner = body[1:]
+            if inner.endswith("}"):
+                inner = inner[:-1]
+            body = inner
+        for part in _split_top_level(body):
+            part = re.sub(r"\btype\b", "", part).strip()
+            m2 = re.match(r"^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$", part)
+            if not m2:
+                continue
+            imports[m2.group(2) or m2.group(1)] = (spec, "named")
+    return imports
+
+
+def _strip_ts_text(text: str) -> str:
+    """Blank strings and comments (positions preserved) so call regexes don't
+    match inside them."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    in_str: str | None = None
+    while i < n:
+        c = text[i]
+        if in_str is not None:
+            out.append(" ")
+            if c == "\\":
+                i += 2
+                continue
+            if c == in_str:
+                in_str = None
+        elif c in ("'", '"', "`"):
+            in_str = c
+            out.append(" ")
+        elif c == "/" and i + 1 < n and text[i + 1] == "/":
+            j = text.find("\n", i)
+            j = n if j == -1 else j
+            out.append(" " * (j - i))
+            i = j
+            continue
+        elif c == "/" and i + 1 < n and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            j = n if j == -1 else j + 2
+            out.append(" " * (j - i))
+            i = j
+            continue
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
 
 GO_RECEIVER = re.compile(
     r"^func\s+\(\s*\w+\s+\*?([A-Za-z_]\w*)\s*\)\s*([A-Za-z_]\w*)\s*\(",
@@ -316,17 +426,38 @@ def _params(args: ast.arguments) -> str:
     return ", ".join(names)
 
 
-def _py_method(name: str, node: ast.AST) -> dict[str, Any]:
-    last = name.split(".")[-1]
-    return {
-        "id": name,
-        "kind": "",
-        "name": name,
-        "visibility": _visibility(last),
-        "returnType": _annotation(node.returns),
-        "params": _params(node.args),
-        "steps": [],
-    }
+def _py_doc(node: ast.AST) -> str:
+    try:
+        doc = ast.get_docstring(node, clean=True)
+    except Exception:
+        return ""
+    return "" if not doc else doc
+
+
+def _py_aliases(tree: ast.Module, path: str) -> dict[str, tuple[str, str | None]]:
+    """Top-level imports as {bound name: (dotted module, symbol | None)}.
+
+    `import a.b` binds the top name; `from x.y import z as w` binds w to
+    symbol z of module x.y. Symbols with the same name as a submodule resolve
+    as the module first (callers try both).
+    """
+    base_parts = path[:-3].split("/") if path.endswith(".py") else []
+    aliases: dict[str, tuple[str, str | None]] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                aliases[a.asname or a.name.split(".")[0]] = (a.name, None)
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if node.level:
+                drop = min(node.level, len(base_parts))
+                base = ".".join(base_parts[: len(base_parts) - drop])
+                mod = f"{base}.{mod}" if base and mod else base or mod
+            for a in node.names:
+                if a.name == "*":
+                    continue
+                aliases[a.asname or a.name] = (mod, a.name)
+    return aliases
 
 
 def _unique_ids(names: list[str]) -> list[str]:
@@ -342,21 +473,23 @@ def _unique_ids(names: list[str]) -> list[str]:
     return out
 
 
-def _parse_python(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _parse_python(
+    path: str, source: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    """(fields, methods, notes, aux) — methods carry 'owner' (class or ''),
+    notes has 'module'/'classes' docstrings, aux holds the AST for calls."""
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
-        return [], []
+        return [], [], {"module": "", "classes": {}}, {}
     fields: list[dict[str, Any]] = []
-    named: list[tuple[str, ast.AST]] = []
+    classes: dict[str, ast.ClassDef] = {}
+    module_funcs: list[ast.AST] = []
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
-            fields.append({"name": node.name, "visibility": _visibility(node.name), "type": "class"})
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    named.append((f"{node.name}.{item.name}", item))
+            classes[node.name] = node
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            named.append((node.name, node))
+            module_funcs.append(node)
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             for target in targets:
@@ -364,9 +497,33 @@ def _parse_python(path: str, source: str) -> tuple[list[dict[str, Any]], list[di
                     fields.append(
                         {"name": target.id, "visibility": _visibility(target.id), "type": "const"}
                     )
-    ids = _unique_ids([n for n, _ in named])
-    methods = [_py_method(nid, node) for nid, (_, node) in zip(ids, named)]
-    return fields, methods
+    named: list[tuple[str, str, ast.AST]] = []
+    for name, cdef in classes.items():
+        for item in cdef.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                named.append((f"{name}.{item.name}", name, item))
+    for item in module_funcs:
+        named.append((item.name, "", item))
+    ids = _unique_ids([n for n, _, _ in named])
+    methods = []
+    for nid, (name, owner, node) in zip(ids, named):
+        last = name.split(".")[-1]
+        methods.append(
+            {
+                "id": nid,
+                "kind": "",
+                "name": name,
+                "visibility": _visibility(last),
+                "returnType": _annotation(node.returns),
+                "params": _params(node.args),
+                "steps": [],
+                "notes": _py_doc(node),
+                "owner": owner,
+            }
+        )
+    notes = {"module": _py_doc(tree), "classes": {n: _py_doc(c) for n, c in classes.items()}}
+    functions = [(owner, name, node) for name, owner, node in named]
+    return fields, methods, notes, {"functions": functions, "aliases": _py_aliases(tree, path)}
 
 
 # ---------------------------------------------------------------------------
@@ -498,39 +655,61 @@ def _func_params(text: str, name_end: int) -> str:
     return _ts_params(_extract_group(text, i))
 
 
-def _parse_ts(path: str, text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _parse_ts(
+    path: str, text: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     fields: list[dict[str, Any]] = []
-    entries: list[tuple[str, str, str]] = []  # (name, params, visibility)
+    entries: list[tuple[str, str, str, str, str]] = []  # (name, params, vis, owner, note)
+    exports: dict[str, str] = {}
+    class_methods: dict[str, set[str]] = {}
+    export_decls: list[tuple[int, Any]] = []
+    for m in TS_EXPORT.finditer(text):
+        export_decls.append((m.start(), (m.group(1), m.group(2))))
+    docmap = _pair_docs(text, export_decls)
+    module_note = _ts_module_note(text, export_decls[0][0] if export_decls else None)
     for m in TS_EXPORT.finditer(text):
         kind, name = m.group(1), m.group(2)
+        note = docmap.get((kind, name), "")
         line_start = text.rfind("\n", 0, m.start()) + 1
         line_end = text.find("\n", m.end())
         if line_end == -1:
             line_end = len(text)
         line = text[line_start:line_end]
         if kind == "function":
-            entries.append((name, _func_params(text, m.end()), _visibility(name)))
+            entries.append((name, _func_params(text, m.end()), _visibility(name), "", note))
+            exports[name] = "func"
         elif kind in ("const", "let", "var"):
             eq = line.find("=")
             arrow = eq != -1 and ("=>" in line or "(" in line[eq:])
             if arrow:
-                entries.append((name, _arrow_params(text, line_start, line_end), _visibility(name)))
+                entries.append((name, _arrow_params(text, line_start, line_end), _visibility(name), "", note))
+                exports[name] = "func"
             else:
                 fields.append({"name": name, "visibility": _visibility(name), "type": "const"})
         elif kind == "class":
-            fields.append({"name": name, "visibility": _visibility(name), "type": "class"})
+            class_methods[name] = set()
+            exports[name] = "class"
             body_start = text.find("{", m.end())
             body = _balanced(text, body_start, "{", "}")
             if body:
+                method_decls = []
+                for bm in TS_CLASS_METHOD.finditer(body):
+                    if bm.group(1) in TS_SKIP_KEYWORDS:
+                        continue
+                    method_decls.append((body_start + 1 + bm.start(), bm.start()))
+                method_docs = _pair_docs(text, method_decls)
                 for bm in TS_CLASS_METHOD.finditer(body):
                     mname = bm.group(1)
                     if mname in TS_SKIP_KEYWORDS:
                         continue
+                    class_methods[name].add(mname)
                     entries.append(
                         (
                             f"{name}.{mname}",
                             _ts_params(_extract_group(body, bm.end() - 1)),
                             _visibility(mname),
+                            name,
+                            method_docs.get(bm.start(), ""),
                         )
                     )
         else:
@@ -545,13 +724,25 @@ def _parse_ts(path: str, text: str) -> tuple[list[dict[str, Any]], list[dict[str
             "returnType": "",
             "params": p,
             "steps": [],
+            "notes": note,
+            "owner": owner,
         }
-        for nid, (n, p, v) in zip(ids, entries)
+        for nid, (n, p, v, owner, note) in zip(ids, entries)
     ]
-    return fields, methods
+    notes = {"module": module_note, "classes": {}}
+    for cls_name in class_methods:
+        notes["classes"][cls_name] = ""
+    # class notes from the export docmap
+    for m in TS_EXPORT.finditer(text):
+        if m.group(1) == "class":
+            notes["classes"][m.group(2)] = docmap.get(("class", m.group(2)), "")
+    aux = {"exports": exports, "classes": class_methods, "imports": _ts_imports(text)}
+    return fields, methods, notes, aux
 
 
-def _parse_ts_scripts(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _parse_ts_scripts(
+    path: str, source: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     """Vue/Svelte: concatenate every <script> block and run the TS parser."""
     combined = "\n".join(m.group(1) for m in SCRIPT_BLOCK.finditer(source))
     return _parse_ts(path, combined)
@@ -575,7 +766,9 @@ def _go_return_type(text: str, close: int) -> str:
     return text[i:end].strip()
 
 
-def _parse_go(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _parse_go(
+    path: str, source: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     fields: list[dict[str, Any]] = []
     entries: list[tuple[str, str, str, str]] = []  # (name, visibility, returnType, params)
     for m in GO_RECEIVER.finditer(source):
@@ -602,6 +795,8 @@ def _parse_go(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[s
             "returnType": r,
             "params": p,
             "steps": [],
+            "notes": "",
+            "owner": "",
         }
         for nid, (n, v, r, p) in zip(ids, entries)
     ]
@@ -629,7 +824,7 @@ def _parse_go(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[s
         fields.append(
             {"name": name, "visibility": _visibility(name, upper_is_public=True), "type": tkind}
         )
-    return fields, methods
+    return fields, methods, EMPTY_NOTES, EMPTY_AUX
 
 
 # ---------------------------------------------------------------------------
@@ -645,7 +840,7 @@ def _jvm_parse(
     has_return: bool = True,
     skip: set[str] | None = None,
     type_first: bool = False,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     explicit_map = explicit_map or {}
     fields: list[dict[str, Any]] = []
     for m in type_re.finditer(text):
@@ -654,7 +849,7 @@ def _jvm_parse(
         tkind, name = m.group(2), m.group(3)
         fields.append({"name": name, "visibility": _visibility(name, vis), "type": tkind})
     if method_re is None:
-        return fields, []
+        return fields, [], EMPTY_NOTES, EMPTY_AUX
     entries: list[tuple[str, str, str, str]] = []  # (name, visibility, returnType, params)
     for m in method_re.finditer(text):
         vis = m.group(1) or ""
@@ -691,10 +886,12 @@ def _jvm_parse(
             "returnType": r,
             "params": p,
             "steps": [],
+            "notes": "",
+            "owner": "",
         }
         for nid, (n, v, r, p) in zip(ids, entries)
     ]
-    return fields, methods
+    return fields, methods, EMPTY_NOTES, EMPTY_AUX
 
 
 def _parse_java(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -787,10 +984,12 @@ def _parse_rust(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict
             "returnType": r,
             "params": p,
             "steps": [],
+            "notes": "",
+            "owner": "",
         }
         for nid, (n, v, r, p) in zip(ids, entries)
     ]
-    return fields, methods
+    return fields, methods, EMPTY_NOTES, EMPTY_AUX
 
 
 # ---------------------------------------------------------------------------
@@ -832,10 +1031,12 @@ def _parse_ruby(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict
             "returnType": "",
             "params": p,
             "steps": [],
+            "notes": "",
+            "owner": "",
         }
         for nid, (n, v, p) in zip(ids, entries)
     ]
-    return fields, methods
+    return fields, methods, EMPTY_NOTES, EMPTY_AUX
 
 
 # ---------------------------------------------------------------------------
@@ -866,10 +1067,12 @@ def _parse_php(path: str, source: str) -> tuple[list[dict[str, Any]], list[dict[
             "returnType": "",
             "params": p,
             "steps": [],
+            "notes": "",
+            "owner": "",
         }
         for nid, (n, v, p) in zip(ids, entries)
     ]
-    return fields, methods
+    return fields, methods, EMPTY_NOTES, EMPTY_AUX
 
 
 # ---------------------------------------------------------------------------
@@ -1150,6 +1353,11 @@ def _no_deps(path: str, source: str) -> list[list[str]]:
     return []
 
 
+# Parsers that don't extract docstrings still speak the 4-tuple contract.
+EMPTY_NOTES: dict[str, Any] = {"module": "", "classes": {}}
+EMPTY_AUX: dict[str, Any] = {}
+
+
 PARSERS = {
     "python": _parse_python,
     "typescript": _parse_ts,
@@ -1183,24 +1391,280 @@ DEPS = {
 
 
 # ---------------------------------------------------------------------------
+# Call-graph extraction (workflow edges, kind="calls")
+# ---------------------------------------------------------------------------
+#
+# Both languages share a registry {rel path: {"classes": {name: {"methods":
+# set, "node": id}}, "funcs": {name: node id}}}. A call resolves to the class
+# node of the callee method/class or the file node of a module-level function.
+# Calls inside the same module are skipped: the file's own tree already shows
+# them. Resolution is conservative — anything ambiguous simply yields no edge.
+
+
+def _py_chain(func: ast.AST) -> list[str] | None:
+    """Dotted chain of a call func; None for dynamic/locally-scoped calls."""
+    parts: list[str] = []
+    node = func
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+        return list(reversed(parts))
+    return None
+
+
+def _py_module_target(
+    mod_path: str, rest: list[str], caller_path: str, registry: dict[str, Any]
+) -> tuple[str, str] | None:
+    if mod_path == caller_path or mod_path not in registry:
+        return None
+    reg = registry[mod_path]
+    if len(rest) == 1:
+        name = rest[0]
+        cls = reg["classes"].get(name)
+        if cls is not None:
+            return cls["node"], name
+        fid = reg["funcs"].get(name)
+        if fid is not None:
+            return fid, name
+        return None
+    if len(rest) == 2:
+        cls, meth = rest
+        c = reg["classes"].get(cls)
+        if c is not None and meth in c["methods"]:
+            return c["node"], meth
+        return None
+    return None
+
+
+def _py_target(
+    mod: str, sym: str | None, rest: list[str], caller_path: str, registry: dict[str, Any]
+) -> tuple[str, str] | None:
+    """Resolve against module `mod` (dotted): `sym` may be a submodule or a
+    symbol inside it; `rest` is the un-walked part of the call chain."""
+    if sym is not None:
+        sub = _dotted_to_path(f"{mod}.{sym}" if mod else sym)
+        if sub in registry:
+            return _py_module_target(sub, rest, caller_path, registry)
+    mod_path = _dotted_to_path(mod) if mod else ""
+    if mod_path and mod_path in registry and mod_path != caller_path:
+        reg = registry[mod_path]
+        cls = reg["classes"].get(sym) if sym is not None else None
+        if cls is not None:
+            if not rest:
+                return cls["node"], sym
+            if len(rest) == 1 and rest[0] in cls["methods"]:
+                return cls["node"], rest[0]
+            return None
+        fid = reg["funcs"].get(sym) if sym is not None else None
+        if fid is not None and not rest:
+            return fid, sym
+    return None
+
+
+def _resolve_py_call(
+    chain: list[str], module_path: str, aliases: dict[str, tuple[str, str | None]],
+    registry: dict[str, Any],
+) -> tuple[str, str] | None:
+    if len(chain) == 1:
+        name = chain[0]
+        if name in ("self", "cls", "super"):
+            return None
+        alias = aliases.get(name)
+        if alias is None:
+            return None
+        mod, sym = alias
+        if sym is None:
+            return None
+        return _py_target(mod, sym, [], module_path, registry)
+    base = chain[0]
+    if base in ("self", "cls", "super"):
+        return None
+    alias = aliases.get(base)
+    if alias is None:
+        return None
+    mod, sym = alias
+    if sym is None:
+        tail = mod.split(".")[1:]
+        rest = chain[1:]
+        if rest[: len(tail)] == tail:
+            rest = rest[len(tail):]
+        return _py_module_target(_dotted_to_path(mod), rest, module_path, registry)
+    return _py_target(mod, sym, chain[1:], module_path, registry)
+
+
+def _collect_py_calls(
+    m: Module, aux: dict[str, Any], registry: dict[str, Any], calls: dict[tuple[str, str], set[str]]
+) -> None:
+    aliases = aux["aliases"]
+    for owner, _fname, fnode in aux["functions"]:
+        caller = m.node_id if not owner else f"{m.node_id}#{owner}"
+        for node in ast.walk(fnode):
+            if not isinstance(node, ast.Call):
+                continue
+            chain = _py_chain(node.func)
+            if not chain:
+                continue
+            hit = _resolve_py_call(chain, m.path, aliases, registry)
+            if hit is None:
+                continue
+            target_id, callee = hit
+            if target_id != caller:
+                calls.setdefault((caller, target_id), set()).add(callee)
+
+
+def _resolve_ts_spec(base_dir: str, spec: str, registry: dict[str, Any]) -> str | None:
+    combined = posixpath.normpath(posixpath.join(base_dir, spec)) if base_dir else posixpath.normpath(spec)
+    cands = [combined]
+    if not combined.endswith(TS_EXTENSIONS):
+        cands += [combined + e for e in TS_EXTENSIONS]
+        cands += [combined + i for i in TS_INDEX_FILES]
+    for cand in cands:
+        if cand in registry:
+            return cand
+    return None
+
+
+def _ts_target(path: str, sym: str, registry: dict[str, Any]) -> tuple[str, str] | None:
+    reg = registry.get(path)
+    if not reg:
+        return None
+    cls = reg["classes"].get(sym)
+    if cls is not None:
+        return cls["node"], sym
+    fid = reg["funcs"].get(sym)
+    if fid is not None:
+        return fid, sym
+    return None
+
+
+def _collect_ts_calls(
+    m: Module, aux: dict[str, Any], registry: dict[str, Any], calls: dict[tuple[str, str], set[str]]
+) -> None:
+    imports = aux["imports"]
+    stripped = _strip_ts_text(m.source)
+
+    def add(target_id: str, callee: str) -> None:
+        if target_id != m.node_id:
+            calls.setdefault((m.node_id, target_id), set()).add(callee)
+
+    for mm in TS_CALL.finditer(stripped):
+        base, sym = mm.group(1), mm.group(2)
+        if base in ("this", "super"):
+            continue
+        imp = imports.get(base)
+        if imp is None:
+            continue
+        spec, kind = imp
+        path = _resolve_ts_spec(m.dirname, spec, registry)
+        if path is None or path == m.path:
+            continue
+        hit = _ts_target(path, sym, registry)
+        if hit is None and kind == "named":
+            cls = registry.get(path, {}).get("classes", {}).get(base)
+            if cls is not None and sym in cls["methods"]:
+                hit = (cls["node"], sym)
+        if hit is not None:
+            add(*hit)
+    for mm in TS_BARE_CALL.finditer(stripped):
+        name = mm.group(1)
+        if name in TS_CALL_SKIP:
+            continue
+        imp = imports.get(name)
+        if imp is None:
+            continue
+        spec, _kind = imp
+        path = _resolve_ts_spec(m.dirname, spec, registry)
+        if path is None or path == m.path:
+            continue
+        hit = _ts_target(path, name, registry)
+        if hit is not None:
+            add(*hit)
+
+
+def _build_call_registry(mods: list[Module], parsed: dict[str, Any]) -> dict[str, Any]:
+    registry: dict[str, Any] = {}
+    ts_langs = ("typescript", "javascript", "vue", "svelte")
+    for m in sorted(mods):
+        _fields, methods, _notes, aux = parsed[m.path]
+        if m.lang == "python":
+            classes: dict[str, Any] = {}
+            funcs: dict[str, str] = {}
+            for mm in methods:
+                owner = mm["owner"]
+                if owner:
+                    classes.setdefault(owner, {"methods": set(), "node": f"{m.node_id}#{owner}"})
+                    classes[owner]["methods"].add(mm["name"].split(".", 1)[1])
+                else:
+                    funcs[mm["name"]] = m.node_id
+            registry[m.path] = {"classes": classes, "funcs": funcs}
+        elif m.lang in ts_langs:
+            classes = {}
+            funcs = {}
+            for name, kind in aux["exports"].items():
+                if kind == "class":
+                    classes[name] = {
+                        "methods": set(aux["classes"].get(name, ())),
+                        "node": f"{m.node_id}#{name}",
+                    }
+                else:
+                    funcs[name] = m.node_id
+            registry[m.path] = {"classes": classes, "funcs": funcs}
+    return registry
+
+
+def _call_label(names: set[str]) -> str:
+    text = ", ".join(sorted(names))
+    if len(text) > 40:
+        text = text[:39] + "…"
+    return text
+
+
+# ---------------------------------------------------------------------------
 # Graph assembly
 # ---------------------------------------------------------------------------
 
 
-def parse_module(m: Module) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_module(
+    m: Module,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     return PARSERS[m.lang](m.path, m.source)
 
 
-def module_node(m: Module, pos: tuple[int, int], fields: list[dict], methods: list[dict]) -> dict:
+def _strip_owner(method: dict[str, Any]) -> dict[str, Any]:
+    """The 'owner' key is assembly-only; it must not reach the stored graph."""
+    return {k: v for k, v in method.items() if k != "owner"}
+
+
+def file_node(m: Module, pos: tuple[int, int], fields: list[dict], methods: list[dict], notes: dict) -> dict:
     return {
         "id": m.node_id,
-        "type": "class",
+        "type": "file",
         "position": {"x": pos[0], "y": pos[1]},
         "data": {
             "label": m.path.rsplit("/", 1)[-1][: -len(Path(m.path).suffix)],
             "path": m.path,
             "description": "",
+            "notes": notes["module"],
             "fields": fields,
+            "methods": methods,
+        },
+        "style": MODULE_STYLE,
+    }
+
+
+def class_node(m: Module, cls: str, methods: list[dict], note: str, pos: tuple[int, int]) -> dict:
+    return {
+        "id": f"{m.node_id}#{cls}",
+        "type": "class",
+        "position": {"x": pos[0], "y": pos[1]},
+        "data": {
+            "label": cls,
+            "path": m.path,
+            "description": "",
+            "notes": note,
+            "fields": [],
             "methods": methods,
         },
         "style": MODULE_STYLE,
@@ -1222,16 +1686,33 @@ def build_layer(
     dirs = sorted(by_dir)
     container_dirs = [] if len(dirs) <= 1 else dirs
 
+    parsed: dict[str, tuple] = {}
+    for m in sorted(mods):
+        parsed[m.path] = parse_module(m)
+
+    def class_names(path: str) -> list[str]:
+        return sorted(parsed[path][2]["classes"].keys())
+
     positions: dict[str, tuple[int, int]] = {}
     col = 0
     for d in container_dirs:
         positions[f"pkg:{d}"] = (col * COLUMN_W, 0)
         for j, m in enumerate(sorted(by_dir[d])):
             positions[m.node_id] = (col * COLUMN_W, FIRST_ROW + j * ROW_STEP)
+            for c, cls in enumerate(class_names(m.path)):
+                positions[f"{m.node_id}#{cls}"] = (
+                    col * COLUMN_W,
+                    2 * FIRST_ROW + j * ROW_STEP + c * 120,
+                )
         col += 1
     loose = [m for d, ms in by_dir.items() if d not in container_dirs for m in ms]
     for j, m in enumerate(sorted(loose)):
         positions[m.node_id] = (col * COLUMN_W, j * ROW_STEP)
+        for c, cls in enumerate(class_names(m.path)):
+            positions[f"{m.node_id}#{cls}"] = (
+                col * COLUMN_W,
+                j * ROW_STEP + (c + 1) * 120,
+            )
 
     nodes: list[dict[str, Any]] = []
     for d in container_dirs:
@@ -1246,12 +1727,24 @@ def build_layer(
                 "style": CONTAINER_STYLE,
             }
         )
-        for m in sorted(by_dir[d]):
-            fields, methods = parse_module(m)
-            nodes.append(module_node(m, positions[m.node_id], fields, methods))
-    for m in sorted(loose):
-        fields, methods = parse_module(m)
-        nodes.append(module_node(m, positions[m.node_id], fields, methods))
+    for m in sorted(mods):
+        fields, methods, notes, _aux = parsed[m.path]
+        cls_methods: dict[str, list[dict[str, Any]]] = {c: [] for c in notes["classes"]}
+        for mm in methods:
+            if mm["owner"]:
+                cls_methods.setdefault(mm["owner"], []).append(_strip_owner(mm))
+        file_methods = [_strip_owner(mm) for mm in methods if not mm["owner"]]
+        nodes.append(file_node(m, positions[m.node_id], fields, file_methods, notes))
+        for cls in sorted(cls_methods):
+            nodes.append(
+                class_node(
+                    m,
+                    cls,
+                    cls_methods[cls],
+                    notes["classes"].get(cls, ""),
+                    positions[f"{m.node_id}#{cls}"],
+                )
+            )
     nodes.sort(key=lambda n: n["id"])
 
     edges: list[dict[str, Any]] = []
@@ -1259,10 +1752,24 @@ def build_layer(
         cid = f"pkg:{d}"
         for m in sorted(by_dir[d]):
             edges.append(_make_edge(cid, m.node_id, "contains", "", edge_ids))
+            for cls in class_names(m.path):
+                edges.append(_make_edge(m.node_id, f"{m.node_id}#{cls}", "contains", "", edge_ids))
     for m in sorted(mods):
         deps = _module_deps(m, modules_by_path, layer, skipped, deps_registry)
         for target in sorted(deps):
             edges.append(_make_edge(m.node_id, target, "depends-on", "in-process", edge_ids))
+    calls: dict[tuple[str, str], set[str]] = {}
+    registry = _build_call_registry(mods, parsed)
+    for m in sorted(mods):
+        aux = parsed[m.path][3]
+        if m.lang == "python":
+            _collect_py_calls(m, aux, registry, calls)
+        elif m.lang in ("typescript", "javascript", "vue", "svelte"):
+            _collect_ts_calls(m, aux, registry, calls)
+    for source, target in sorted(calls):
+        edges.append(
+            _make_edge(source, target, "calls", "", edge_ids, label=_call_label(calls[(source, target)]))
+        )
     edges.sort(key=lambda e: e["id"])
     return {"nodes": nodes, "edges": edges}
 
@@ -1299,7 +1806,7 @@ def _module_deps(
 
 
 def _make_edge(
-    source: str, target: str, kind: str, protocol: str, used: set[str]
+    source: str, target: str, kind: str, protocol: str, used: set[str], label: str = ""
 ) -> dict[str, str]:
     base = f"e:{source}-->{target}"
     eid = base
@@ -1308,7 +1815,7 @@ def _make_edge(
         eid = f"{base}-{n}"
         n += 1
     used.add(eid)
-    return {"id": eid, "source": source, "target": target, "label": "", "kind": kind, "protocol": protocol}
+    return {"id": eid, "source": source, "target": target, "label": label, "kind": kind, "protocol": protocol}
 
 
 def _read_utf8(path: Path) -> str:

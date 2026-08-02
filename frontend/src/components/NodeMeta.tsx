@@ -1,6 +1,6 @@
 import type { EditDraft } from '../types'
 
-type NodeMetaBlock = 'table' | 'shape' | 'class' | 'service'
+type NodeMetaBlock = 'table' | 'shape' | 'class' | 'service' | 'file'
 
 interface NodeMetaProps {
   block: NodeMetaBlock

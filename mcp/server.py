@@ -31,7 +31,7 @@ PROJECT_VERSION = "0.0.1"
 API_URL = os.environ.get("METASPECS_API_URL", "http://localhost:8000")
 LAYERS = ("backend", "db", "frontend")
 # Persistable node types; 'preview' is the transient drag ghost and never stored.
-NODE_TYPES = ("table", "shape", "class", "service")
+NODE_TYPES = ("table", "shape", "class", "service", "file")
 # Mirrors EDGE_KIND_NAMES in backend/models.py; the repo root isn't importable from here.
 EDGE_KINDS = ("contains", "calls", "implements", "reads", "writes", "depends-on")
 
@@ -41,6 +41,7 @@ DEFAULT_SIZE: dict[str, dict[str, float]] = {
     "shape": {"width": 180, "height": 110},
     "class": {"width": 260, "height": 180},
     "service": {"width": 320, "height": 240},
+    "file": {"width": 320, "height": 240},
 }
 
 server = MCPServer("metaspecs", version=MCP_VERSION)
@@ -163,9 +164,10 @@ def get_graph(project_id: str, layer: str) -> dict:
 @server.tool(
     description=(
         "Replace an entire layer graph. nodes: [{id, type: table|shape|"
-        "class|service, position:{x,y}, data}], edges: [{id, source, "
-        "target, label}]. A service's membership travels in edges: any "
-        "class wired to a service node belongs to it."
+        "class|service|file, position:{x,y}, data}], edges: [{id, source, "
+        "target, label}]. Membership travels in edges: any class wired to a "
+        "file node belongs to it, any file (or class) wired to a service "
+        "node belongs to it."
     )
 )
 def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]) -> dict:
@@ -185,9 +187,13 @@ def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]
         "step|branch|call, ids unique within the node. "
         "service: {label} only — members are NOT in its data, wire a class to "
         "it with add_edge (either direction). "
-        "Layers, as in the UI: class is backend+frontend, service is backend, "
-        "table and shape are any. path/description are optional node metadata "
-        "merged into data. Returns the new node id and graph counts."
+        "file: {label, methods: [{id, name, visibility, returnType, params, "
+        "steps}]} — module-level functions; classes are NOT in its data, "
+        "wire them with add_edge. "
+        "Layers, as in the UI: class and file are backend+frontend, service "
+        "is backend, table and shape are any. path/description are optional "
+        "node metadata merged into data. Returns the new node id and graph "
+        "counts."
     )
 )
 def add_node(

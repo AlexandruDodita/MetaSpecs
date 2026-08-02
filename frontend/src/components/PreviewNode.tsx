@@ -70,6 +70,20 @@ export default function PreviewNode({ data }: NodeProps) {
     )
   }
 
+  if (kind === 'file') {
+    return (
+      <div className="file-node file-node--ghost">
+        <div className="file-node__header">
+          <span className="file-node__name">file</span>
+          <span className="file-node__badge">FILE</span>
+        </div>
+        <div className="file-node__members">
+          <div className="service-node__empty">classes wired here</div>
+        </div>
+      </div>
+    )
+  }
+
   if (kind === 'circle') {
     return (
       <div className="shape-node shape-node--ghost shape-node--circle">

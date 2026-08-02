@@ -30,6 +30,7 @@ import TableNode from './TableNode'
 import ShapeNode from './ShapeNode'
 import ClassNode from './ClassNode'
 import ServiceNode from './ServiceNode'
+import FileNode from './FileNode'
 import PreviewNode from './PreviewNode'
 import { makeNode, type PlaceableKind } from '../nodeFactory'
 import { closestSides, nodeSizeOf, pointNode, sideAnchor, type Side } from '../geometry'
@@ -39,6 +40,7 @@ const nodeTypes = {
   shape: ShapeNode,
   class: ClassNode,
   service: ServiceNode,
+  file: FileNode,
   preview: PreviewNode,
 }
 
@@ -57,6 +59,7 @@ const PLACEMENT_TOOLS: ReadonlySet<PlaceableTool> = new Set([
   'table',
   'class',
   'service',
+  'file',
 ])
 
 const WIRE_SNAP_RADIUS = 140
@@ -101,6 +104,7 @@ const TOOL_HINT: Record<PlaceableTool, string> = {
   table: 'Drag on the canvas to draw a table',
   class: 'Drag on the canvas to draw a class',
   service: 'Drag on the canvas to draw a service',
+  file: 'Drag on the canvas to draw a file',
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -140,26 +144,46 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const loadSeq = useGraphStore((s) => s.loadSeq)
   const fittedKeyRef = useRef('')
 
-  // Tree hiding: a class wired to a service is hidden from the canvas while
-  // every connected service is collapsed (it lives inside the service tree
-  // instead). Edges touching hidden nodes are hidden too.
+  // Tree hiding: a node wired to a container (service for files, service or
+  // file for classes) is hidden from the canvas while every connected
+  // container is collapsed — it lives inside the container's tree instead.
+  // Edges touching hidden nodes are hidden too. Visibility is computed
+  // bottom-up: a file whose services are all collapsed is itself hidden, and
+  // its classes then count it as a hidden (not expanded) container.
   const { renderNodes, renderEdges } = useMemo(() => {
     const serviceIds = new Set(
       nodes.filter((n) => n.type === 'service').map((n) => n.id),
     )
+    const fileIds = new Set(
+      nodes.filter((n) => n.type === 'file').map((n) => n.id),
+    )
+    const connectedIds = (nodeId: string) =>
+      edges
+        .filter((e) => e.source === nodeId || e.target === nodeId)
+        .map((e) => (e.source === nodeId ? e.target : e.source))
     const hidden = new Set<string>()
+    const fileHidden = (fid: string): boolean => {
+      const services = connectedIds(fid).filter((id) => serviceIds.has(id))
+      return (
+        services.length > 0 &&
+        !services.some((sid) => isExpanded(expanded, sid, 'service'))
+      )
+    }
+    for (const n of nodes) {
+      if (n.type === 'file' && fileHidden(n.id)) hidden.add(n.id)
+    }
     for (const n of nodes) {
       if (n.type !== 'class') continue
-      const connectedServices = edges
-        .filter((e) => e.source === n.id || e.target === n.id)
-        .map((e) => (e.source === n.id ? e.target : e.source))
-        .filter((id) => serviceIds.has(id))
-      if (
-        connectedServices.length > 0 &&
-        !connectedServices.some((sid) => isExpanded(expanded, sid, 'service'))
-      ) {
-        hidden.add(n.id)
-      }
+      const containers = connectedIds(n.id).filter(
+        (id) => serviceIds.has(id) || fileIds.has(id),
+      )
+      const expandedContainer =
+        containers.some((id) =>
+          serviceIds.has(id)
+            ? isExpanded(expanded, id, 'service')
+            : isExpanded(expanded, id, 'file') && !hidden.has(id),
+        )
+      if (containers.length > 0 && !expandedContainer) hidden.add(n.id)
     }
     const renderNodes = nodes.filter((n) => !hidden.has(n.id))
     const renderEdges = edges
@@ -428,6 +452,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
         t: 'table',
         k: 'class',
         s: 'service',
+        f: 'file',
         w: 'wire',
       }
       const next = toolByKey[key]

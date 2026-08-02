@@ -319,6 +319,7 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
   const fields = data.fields ?? []
   const methods = data.methods ?? []
   const path = data.path ?? ''
+  const notes = data.notes ?? ''
 
   return (
     <>
@@ -337,6 +338,7 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
         </button>
       </div>
       {path && <div className="node-meta__path">{path}</div>}
+      {notes && <div className="node-notes">{notes}</div>}
       <div className="class-node__body">
         <div className="class-node__section">
           <div className="class-node__section-title">FIELDS</div>
@@ -369,7 +371,12 @@ function ClassView({ data, id }: { data: ClassNodeData; id: string }) {
                     />
                     <span className="method-row__chevron">{isExpanded ? '▾' : '▸'}</span>
                   </div>
-                  {isExpanded && <MethodSteps id={id} method={m} />}
+                  {isExpanded && (
+                    <>
+                      {m.notes && <div className="method-notes">{m.notes}</div>}
+                      <MethodSteps id={id} method={m} />
+                    </>
+                  )}
                 </div>
               )
             })}

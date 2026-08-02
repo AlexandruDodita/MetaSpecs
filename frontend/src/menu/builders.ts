@@ -17,6 +17,9 @@ export function buildPaneMenu(ctx: MenuContext): MenuItem[] {
   if (ctx.layer === 'backend') {
     menu.push(new MenuAction('Add service', () => store.addNodeAt(ctx.layer, makeNode('service', ctx.x, ctx.y)), '⊞'))
   }
+  if (ctx.layer !== 'db') {
+    menu.push(new MenuAction('Add file', () => store.addNodeAt(ctx.layer, makeNode('file', ctx.x, ctx.y)), '❐'))
+  }
   return [
     ...menu,
     new MenuSeparator(),
@@ -47,6 +50,7 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
   const isShape = node?.type === 'shape'
   const isClass = node?.type === 'class'
   const isService = node?.type === 'service'
+  const isFile = node?.type === 'file'
   const targets = store.graphs[layer].nodes.filter((n) => n.id !== nodeId)
   const nodeLabel = (id: string) =>
     store.graphs[layer].nodes.find((n) => n.id === id)?.data.label ?? id
@@ -63,7 +67,15 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
 
   const items: MenuItem[] = [
     new MenuAction(
-      isClass ? 'Edit class' : isService ? 'Edit service' : isShape ? 'Edit shape' : 'Edit table',
+      isClass
+        ? 'Edit class'
+        : isService
+          ? 'Edit service'
+          : isFile
+            ? 'Edit file'
+            : isShape
+              ? 'Edit shape'
+              : 'Edit table',
       () => store.startEditing(layer, nodeId),
       '✎',
     ),
@@ -100,6 +112,15 @@ export function buildNodeMenu(ctx: MenuContext, nodeId: string): MenuItem[] {
       new MenuAction(
         isExpanded(store.expanded, nodeId, 'service') ? 'Collapse service' : 'Expand service',
         () => store.toggleExpanded(nodeId, 'service'),
+      ),
+    )
+  }
+
+  if (isFile) {
+    items.push(
+      new MenuAction(
+        isExpanded(store.expanded, nodeId, 'file') ? 'Collapse file' : 'Expand file',
+        () => store.toggleExpanded(nodeId, 'file'),
       ),
     )
   }

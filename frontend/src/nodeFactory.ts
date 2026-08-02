@@ -1,6 +1,7 @@
 import type {
   AppNode,
   ClassNodeData,
+  FileNodeData,
   LogicKind,
   LogicStep,
   ServiceNodeData,
@@ -9,7 +10,7 @@ import type {
   TableNodeData,
 } from './types'
 
-export type PlaceableKind = 'table' | ShapeKind | 'class' | 'service'
+export type PlaceableKind = 'table' | ShapeKind | 'class' | 'service' | 'file'
 
 export const DEFAULT_SIZE: Record<PlaceableKind, { width: number; height: number }> = {
   table: { width: 260, height: 150 },
@@ -17,6 +18,7 @@ export const DEFAULT_SIZE: Record<PlaceableKind, { width: number; height: number
   circle: { width: 120, height: 120 },
   class: { width: 260, height: 180 },
   service: { width: 320, height: 240 },
+  file: { width: 320, height: 240 },
 }
 
 export const MIN_SIZE: Record<PlaceableKind, { width: number; height: number }> = {
@@ -25,6 +27,7 @@ export const MIN_SIZE: Record<PlaceableKind, { width: number; height: number }> 
   circle: { width: 60, height: 60 },
   class: { width: 260, height: 140 },
   service: { width: 320, height: 200 },
+  file: { width: 320, height: 200 },
 }
 
 let seq = 0
@@ -38,7 +41,7 @@ export function makeNodeId(): string {
 
 /** The PlaceableKind a stored node was built from (drives default sizes). */
 export function placeableKindOf(node: { type?: string; data?: unknown }): PlaceableKind {
-  if (node.type === 'table' || node.type === 'class' || node.type === 'service') {
+  if (node.type === 'table' || node.type === 'class' || node.type === 'service' || node.type === 'file') {
     return node.type
   }
   return (node.data as { kind?: ShapeKind } | undefined)?.kind ?? 'rect'
@@ -58,11 +61,15 @@ export function makeShapeData(kind: ShapeKind, label = kind): ShapeNodeData {
 }
 
 export function makeClassData(label = 'class'): ClassNodeData {
-  return { label, fields: [], methods: [], path: '', description: '' }
+  return { label, fields: [], methods: [], path: '', description: '', notes: '' }
 }
 
 export function makeServiceData(label = 'service'): ServiceNodeData {
   return { label, path: '', description: '' }
+}
+
+export function makeFileData(label = 'file'): FileNodeData {
+  return { label, fields: [], methods: [], path: '', description: '', notes: '' }
 }
 
 /** One row in a method's logic tree (start/end are implicit). */
@@ -83,7 +90,7 @@ export function makeNode(
   const w = Math.max(width ?? size.width, min.width)
   const h = Math.max(height ?? size.height, min.height)
   const type: AppNode['type'] =
-    kind === 'table' || kind === 'class' || kind === 'service' ? kind : 'shape'
+    kind === 'table' || kind === 'class' || kind === 'service' || kind === 'file' ? kind : 'shape'
   const data =
     kind === 'table'
       ? makeTableData()
@@ -91,7 +98,9 @@ export function makeNode(
         ? makeClassData()
         : kind === 'service'
           ? makeServiceData()
-          : makeShapeData(kind)
+          : kind === 'file'
+            ? makeFileData()
+            : makeShapeData(kind)
   return {
     id: makeNodeId(),
     type,

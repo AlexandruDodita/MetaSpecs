@@ -472,3 +472,18 @@
   color: #5c6370;
   font-style: italic;
 }
+
+.tree-row--file .tree-row__name {
+  color: #8fd0b8;
+}
+
+.tree-notes {
+  padding: 3px 8px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #9aa3b5;
+  background: rgba(143, 208, 184, 0.04);
+  border-left: 2px solid #3f6a5c;
+  white-space: pre-wrap;
+  cursor: default;
+}

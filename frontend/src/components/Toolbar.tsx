@@ -19,6 +19,7 @@ const TOOLS: ToolEntry[] = [
   { id: 'table', icon: '▦', label: 'Draw table (drag on canvas)', key: 'T' },
   { id: 'class', icon: '❏', label: 'Draw class (drag on canvas)', key: 'K', layers: ['backend', 'frontend'] },
   { id: 'service', icon: '⊞', label: 'Draw service (drag on canvas)', key: 'S', layers: ['backend'] },
+  { id: 'file', icon: '❐', label: 'Draw file (drag on canvas)', key: 'F', layers: ['backend', 'frontend'] },
   { id: 'wire', icon: '∿', label: 'Wire tool (click source, then target)', key: 'W' },
 ]
 
