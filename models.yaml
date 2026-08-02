@@ -1,9 +1,9 @@
 roles:
   orchestrator:
-    base_url: "https://api.openai.com/v1"
-    model: "gpt-4o-mini"
-    api_key: "${OPENAI_API_KEY}"
+    base_url: "https://opencode.ai/zen/go/v1"
+    model: "deepseek-v4-flash"
+    api_key: "${OPENCODE_API_KEY}"
   worker:
-    base_url: "https://api.openai.com/v1"
-    model: "gpt-4o-mini"
-    api_key: "${OPENAI_API_KEY}"
+    base_url: "https://opencode.ai/zen/go/v1"
+    model: "deepseek-v4-flash"
+    api_key: "${OPENCODE_API_KEY}"

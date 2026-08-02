@@ -165,9 +165,13 @@ def get_graph(project_id: str, layer: str) -> dict:
     description=(
         "Replace an entire layer graph. nodes: [{id, type: table|shape|"
         "class|service|file, position:{x,y}, data}], edges: [{id, source, "
-        "target, label}]. Membership travels in edges: any class wired to a "
-        "file node belongs to it, any file (or class) wired to a service "
-        "node belongs to it."
+        "target, label, kind}]. Membership travels in edges: a class wired to "
+        "a file node belongs to it, a file (or class) wired to a service node "
+        "belongs to it — in either direction, but ONLY when the edge kind is "
+        "'contains' or 'depends-on'. A 'calls' edge is a workflow arrow and "
+        "never implies containment. Rejected with 400 if node or edge ids "
+        "repeat, an edge points at a node that is not in this graph, or a node "
+        "type is not one of the five above."
     )
 )
 def save_graph(project_id: str, layer: str, nodes: list[dict], edges: list[dict]) -> dict:
@@ -293,7 +297,10 @@ def remove_node(project_id: str, layer: str, id: str) -> dict:
         "Wire two nodes on a layer: add an edge from source node id to "
         "target node id, with an optional label, kind and protocol. kind is "
         "one of contains|calls|implements|reads|writes|depends-on (default "
-        "depends-on). Both nodes must already exist. Returns the new edge id "
+        "depends-on). Use 'contains' to put a class inside a file or a "
+        "file/class inside a service — only 'contains' and 'depends-on' mean "
+        "membership; 'calls' draws a workflow arrow and does NOT nest the "
+        "nodes. Both nodes must already exist. Returns the new edge id "
         "and the resulting graph counts."
     )
 )
