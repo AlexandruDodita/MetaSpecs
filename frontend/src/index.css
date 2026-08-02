@@ -235,6 +235,20 @@ button:disabled {
   padding: 2px 8px;
 }
 
+.canvas__wire-kind {
+  background: #1f2127;
+  color: #c8d3f0;
+  border: 1px solid #4a67a8;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.canvas__wire-kind:focus {
+  outline: none;
+  border-color: #7a8bff;
+}
+
 .side {
   width: 340px;
   flex: 0 0 auto;

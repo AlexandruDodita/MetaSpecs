@@ -22,6 +22,25 @@ import { closestSides } from './geometry'
 export type Tool = 'select' | 'rect' | 'circle' | 'table' | 'class' | 'service' | 'file' | 'wire'
 export type PlaceableTool = 'rect' | 'circle' | 'table' | 'class' | 'service' | 'file'
 
+/** Wire-tool edge kind: explicit kind, or 'auto' = infer like the importer. */
+export type WireKind = EdgeKind | 'auto'
+
+/** Infer the kind of a manually drawn wire from the endpoint node types,
+ *  mirroring the importer's semantics: wiring a class/file into a service,
+ *  or a class into a file, is `contains` (membership); class ↔ class and
+ *  file ↔ file (module-level functions) is `calls` (workflow); anything
+ *  else stays `depends-on`. */
+export function inferWireKind(nodes: AppNode[], source: string, target: string): EdgeKind {
+  const typeOf = (id: string) => nodes.find((n) => n.id === id)?.type
+  const st = typeOf(source)
+  const tt = typeOf(target)
+  if (st === 'service' || tt === 'service') return st === tt ? 'depends-on' : 'contains'
+  if (st === 'class' && tt === 'class') return 'calls'
+  if (st === 'file' && tt === 'file') return 'calls'
+  if ((st === 'class' && tt === 'file') || (st === 'file' && tt === 'class')) return 'contains'
+  return 'depends-on'
+}
+
 /** Expansion defaults: classes and files open, containers (services) closed. */
 export const EXPANDED_BY_DEFAULT: Record<'class' | 'service' | 'file', boolean> = {
   class: true,
@@ -84,6 +103,8 @@ interface GraphState {
   loadSeq: number
   tool: Tool
   wireSource: string | null
+  /** Wire-tool edge kind for the next drawn wire ('auto' = infer). */
+  wireKind: WireKind
   drawing: Drawing | null
   /** UI-only edge filter: 'all' or one of the edge kinds. Not persisted. */
   edgeFilter: EdgeKind | 'all'
@@ -109,6 +130,7 @@ interface GraphState {
   setActiveLayer: (layer: Layer) => void
   setTool: (tool: Tool) => void
   setWireSource: (nodeId: string | null) => void
+  setWireKind: (kind: WireKind) => void
   setEdgeFilter: (filter: EdgeKind | 'all') => void
   setSelectedNodeIds: (ids: string[]) => void
   setSelectedEdgeIds: (ids: string[]) => void
@@ -204,6 +226,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   loadSeq: 0,
   tool: 'select',
   wireSource: null,
+  wireKind: 'auto',
   drawing: null,
   edgeFilter: 'all',
   editingNodeId: null,
@@ -246,6 +269,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setTool: (tool) => set({ tool, wireSource: null, drawing: null }),
 
   setWireSource: (nodeId) => set({ wireSource: nodeId }),
+
+  setWireKind: (kind) => set({ wireKind: kind }),
 
   setEdgeFilter: (filter) => set({ edgeFilter: filter }),
 
@@ -344,26 +369,27 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }),
 
   onConnect: (layer, connection) =>
-    set((state) => ({
-      graphs: {
-        ...state.graphs,
-        [layer]: {
-          ...state.graphs[layer],
-          edges: [
-            ...state.graphs[layer].edges,
-            makeEdge(
-              layer,
-              connection.source,
-              connection.target,
-              connection.sourceHandle,
-              connection.targetHandle,
-            ),
-          ],
+    set((state) => {
+      const edge = makeEdge(
+        layer,
+        connection.source,
+        connection.target,
+        connection.sourceHandle,
+        connection.targetHandle,
+      )
+      edge.kind = inferWireKind(state.graphs[layer].nodes, connection.source, connection.target)
+      return {
+        graphs: {
+          ...state.graphs,
+          [layer]: {
+            ...state.graphs[layer],
+            edges: [...state.graphs[layer].edges, edge],
+          },
         },
-      },
-      dirty: { ...state.dirty, [layer]: true },
-      ...pushHistory(state, layer),
-    })),
+        dirty: { ...state.dirty, [layer]: true },
+        ...pushHistory(state, layer),
+      }
+    }),
 
   connectNodes: (layer, source, target) =>
     set((state) => {
@@ -376,15 +402,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         sourceHandle = sourceSide
         targetHandle = targetSide
       }
+      const edge = makeEdge(layer, source, target, sourceHandle, targetHandle)
+      edge.kind =
+        state.wireKind === 'auto'
+          ? inferWireKind(state.graphs[layer].nodes, source, target)
+          : state.wireKind
       return {
         graphs: {
           ...state.graphs,
           [layer]: {
             ...state.graphs[layer],
-            edges: [
-              ...state.graphs[layer].edges,
-              makeEdge(layer, source, target, sourceHandle, targetHandle),
-            ],
+            edges: [...state.graphs[layer].edges, edge],
           },
         },
         dirty: { ...state.dirty, [layer]: true },

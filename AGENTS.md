@@ -331,6 +331,13 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   (store; works on class AND file nodes). Expansion is UI-only store state
   (`expanded`/`expandedMethod`), never persisted. `ServiceNode`/`FileNode`
   derive membership by subscribing to the layer's edges.
+- Wire-tool kind: `store.wireKind` (`'auto' | EdgeKind`, UI-only, default
+  `'auto'`) is chosen from a select in the wire-tool hint. `connectNodes` and
+  `onConnect` resolve the kind via `inferWireKind(nodes, source, target)`
+  (store.ts), which mirrors importer semantics: a class/file into a service or
+  a class into a file is `contains` (membership, either direction), class ↔
+  class and file ↔ file is `calls`, everything else `depends-on`. An explicit
+  pick overrides inference for that wire only (sticky until changed).
 - Tree hiding: `GraphCanvas` filters the rendered graph — a node is hidden
   from the canvas while every container (service or file) it is wired to is
   collapsed or itself hidden (a file whose services are all collapsed is

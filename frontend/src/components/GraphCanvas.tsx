@@ -24,7 +24,7 @@ import '@xyflow/react/dist/style.css'
 import type { AppNode, EdgeKind, Layer } from '../types'
 import { EDGE_KINDS } from '../types'
 import { useGraphStore, useLayerNodes, useLayerEdges, isExpanded } from '../store'
-import type { PlaceableTool } from '../store'
+import type { PlaceableTool, WireKind } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
 import { ContextMenu } from './ContextMenu'
 import TableNode from './TableNode'
@@ -130,6 +130,8 @@ function CanvasInner({ layer }: { layer: Layer }) {
   const edgeFilter = useGraphStore((s) => s.edgeFilter)
   const setEdgeFilter = useGraphStore((s) => s.setEdgeFilter)
   const setWireSource = useGraphStore((s) => s.setWireSource)
+  const wireKind = useGraphStore((s) => s.wireKind)
+  const setWireKind = useGraphStore((s) => s.setWireKind)
   const connectNodes = useGraphStore((s) => s.connectNodes)
   const addNodeAt = useGraphStore((s) => s.addNodeAt)
   const setSelectedNodeIds = useGraphStore((s) => s.setSelectedNodeIds)
@@ -586,7 +588,20 @@ function CanvasInner({ layer }: { layer: Layer }) {
         </div>
       )}
       {tool === 'wire' && (
-        <div className="canvas__hint">
+        <div className="canvas__hint canvas__hint--wire">
+          <select
+            className="canvas__wire-kind"
+            value={wireKind}
+            onChange={(e) => setWireKind(e.target.value as WireKind)}
+            title="Kind for the next wire — auto infers like the importer (class/file into a service or class into a file = contains, class↔class and file↔file = calls)"
+          >
+            <option value="auto">auto</option>
+            {EDGE_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {k === 'calls' ? 'calls (workflow)' : k}
+              </option>
+            ))}
+          </select>
           {wireSource
             ? 'Move near a node to snap · click to connect · Esc to cancel'
             : 'Click a source node'}
