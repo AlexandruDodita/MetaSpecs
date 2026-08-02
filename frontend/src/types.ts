@@ -185,6 +185,17 @@ export interface ImportResult {
   layers: Record<string, number>
 }
 
+export interface DriftReport {
+  project_id: string
+  root: string
+  path: string
+  drift: boolean
+  totals: Record<string, number>
+  layers: Record<string, unknown>
+  text: string
+  stats: ImportStats
+}
+
 export interface DirEntry {
   name: string
   path: string

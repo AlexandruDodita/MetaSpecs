@@ -11,6 +11,8 @@ LAYER_NAMES = ["backend", "db", "frontend"]
 SEVERITY = Literal["error", "warning", "info"]
 EDGE_KIND = Literal["contains", "calls", "implements", "reads", "writes", "depends-on"]
 EDGE_KIND_NAMES = ["contains", "calls", "implements", "reads", "writes", "depends-on"]
+# Persistable node types; `preview` is the transient drag ghost and stays out.
+NODE_TYPE_NAMES = ["table", "shape", "class", "service", "file"]
 
 # React Flow UI state that must never be persisted.
 TRANSIENT_FLOW_FIELDS = ("selected", "dragging", "resizing")
@@ -178,6 +180,25 @@ class ImportResult(BaseModel):
     path: str
     stats: ImportStats
     layers: dict[str, int] = Field(default_factory=dict)   # layer -> node count
+
+
+class DriftRequest(BaseModel):
+    max_files: int = 0          # 0 = use the scanner default
+
+
+class ReimportRequest(BaseModel):
+    max_files: int = 0          # 0 = use the scanner default
+
+
+class DriftReport(BaseModel):
+    project_id: str
+    root: str = ""
+    path: str = ""
+    drift: bool = False
+    totals: dict[str, int] = Field(default_factory=dict)
+    layers: dict[str, Any] = Field(default_factory=dict)
+    text: str = ""
+    stats: ImportStats = Field(default_factory=ImportStats)
 
 
 class DirEntry(BaseModel):

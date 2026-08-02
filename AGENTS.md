@@ -26,7 +26,10 @@ agent-execution loop (MVP stops at tasks.json).
   uvicorn binds `127.0.0.1` and CORS is limited to the Vite origins; do not
   widen either without revisiting it. Services in
   `backend/services/`: `storage.py` (JSON file IO, one file per project),
-  `llm.py` (OpenAI + instructor client), `validate.py`, `compile.py`,
+  `llm.py` (OpenAI-compatible + instructor client), `validate.py`, `compile.py`,
+  `graph_payload.py` (the ONE place graphs are pruned for an LLM prompt — both
+  passes share it; see "LLM payload" below), `drift.py` (read-only rescan +
+  diff; see "Snapshot and drift"),
   `importer.py` (thin wrapper over `tools/import_repo.py` — it holds no scanning
   logic of its own; `from tools import import_repo` works because the repo root
   is on `sys.path` and `tools/` is an implicit namespace package).
@@ -54,7 +57,8 @@ agent-execution loop (MVP stops at tasks.json).
   tree of logic steps `step|branch|call` with inline label edit, reorder and
   delete; edit form for label/fields/methods; class and method docstrings show
   as `notes` blocks), `src/components/ServiceNode.tsx` service/controller
-  container — membership comes from WIRES (any edge to a file or class);
+  container — membership comes from WIRES (a membership-kind edge to a file or
+  class; see "Contracts");
   collapsed body lists the wired files/classes, expanded body is a collapsible
   tree (files → classes → methods → steps),
   `src/components/FileNode.tsx` file/module container — module-level functions
@@ -72,15 +76,24 @@ agent-execution loop (MVP stops at tasks.json).
   `builders.ts`); `src/components/Toolbar.tsx` left mini sidebar reusing the
   same store actions; `src/schema-options.ts` column type/constraint dropdown
   options.
-- `data/` — runtime JSON, gitignored. One file per project:
-  `data/projects/<project-id>.json`. Legacy pre-project files
-  (`backend.graph.json` etc.) are imported once into an "Untitled" project by
-  `storage._ensure_migrated()` on first `list_projects()` call.
+- `data/` — runtime JSON. One file per project:
+  `data/projects/<project-id>.json`. Mostly gitignored, with ONE exception:
+  `data/projects/metaspecs.json` is tracked — MetaSpecs' own architecture, the
+  live editable graph, as opposed to `snapshots/metaspecs.json` which is the
+  machine-written drift baseline. Its id must stay `metaspecs` because
+  `storage.project_path()` derives the filename from the id, and its
+  `repo_path` is deliberately empty so the committed file is not tied to one
+  machine. Every other project on disk stays local (see `.gitignore`). Legacy
+  pre-project files (`backend.graph.json` etc.) are imported once into an
+  "Untitled" project by `storage._ensure_migrated()` on first `list_projects()`
+  call.
 - `mcp/` — MCP server exposing the whole app to LLM clients over stdio
   (`mcp/server.py`). Versions: MCP integration `0.1`, MetaSpecs project
   `v0.0.1`. It proxies the HTTP API (`METASPECS_API_URL`, default
   `http://localhost:8000`) with tools for project CRUD, graph read/write,
-  node/wire editing, reports, validate and compile. Its `NODE_TYPES` must track
+  node/wire editing, reports, validate and compile, plus `import_codebase` /
+  `reimport_project` / `check_drift` — the scan side of the loop, so an agent
+  can ask what moved without going through the UI. Its `NODE_TYPES` must track
   the persistable types in `src/types.ts` (`preview` stays rejected), and its
   `EDGE_KINDS` must mirror `EDGE_KIND_NAMES` in `backend/models.py` (the repo
   root is not importable from `mcp/`). `set_edge_kind` leaves `protocol` alone
@@ -96,7 +109,11 @@ agent-execution loop (MVP stops at tasks.json).
   TS/JSDoc regex). `diff_graphs.py` compares two graphs and exits 1 on drift.
   See "Snapshot and drift" below.
 - `models.yaml` — LLM roles `orchestrator`/`worker`, each with `base_url`,
-  `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment).
+  `model`, `api_key` (may be `${ENV_VAR}`, resolved from environment). Both
+  roles point at opencode-go (`https://opencode.ai/zen/go/v1`,
+  `deepseek-v4-flash`, `${OPENCODE_API_KEY}`) — OpenAI-compatible, so the
+  `openai` client in `llm.py` is unchanged. Export `OPENCODE_API_KEY` or
+  validate/compile 500 with the unresolved variable named in `detail`.
 
 ## Commands
 
@@ -140,9 +157,15 @@ Stored graph JSON is serializable React Flow v12 state:
 - Edge `kind` is one of `contains|calls|implements|reads|writes|depends-on`,
   declared on `GraphEdge` and defaulting to `depends-on`; `protocol` is free
   text. Edges stored before this existed read back as `depends-on` — there is no
-  migration. **Container membership does NOT consult `kind`**: any class wired
-  to a file, or any file/class wired to a service, belongs to it, in either
-  direction. The importer's `calls` edges carry the called names in `label`.
+  migration. **Container membership consults `kind`**: an edge means membership
+  only when its kind is `contains` or `depends-on` (`store.ts`'s
+  `isMembershipEdge`, the one reading of the rule — build neighbour lists with
+  `membershipNeighbours`, never by scanning edges per node). Direction is still
+  irrelevant. `depends-on` is in the allow-list solely because pre-`kind` edges
+  read back as it; dropping it would empty every older hand-drawn container.
+  `calls` is a workflow, NOT containment — it used to be counted, which made
+  `menu/builders.ts` render three classes out of `menu/types.ts` that it merely
+  calls. The importer's `calls` edges carry the called names in `label`.
 - Edge stroke colour is derived from `kind` in `GraphCanvas.tsx`
   (`EDGE_STROKE`; `calls` is orange `#ff9d5c` and rendered `animated` in the
   derived `renderEdges`, never persisted). A `.canvas__filter` select
@@ -157,6 +180,35 @@ Stored graph JSON is serializable React Flow v12 state:
 
 A graph is a point-in-time **copy** of a codebase, never a live view. The loop:
 import → hand-edit the graph → hand it to a coding agent → re-import → diff.
+
+The whole loop is reachable from the UI and from MCP, and the two rescan
+actions are deliberately NOT the same thing:
+
+- **Drift check** (`POST /api/projects/{id}/drift`, `services/drift.py`, the
+  header's "Check drift", MCP `check_drift`) is READ-ONLY. It scans
+  `repo_path` and diffs it against the stored graphs. It must never write a
+  graph — the stored graph is the hand-edited spec, i.e. the thing reality is
+  being compared against. Orientation is stored=OLD, scan=NEW, so "added"
+  reads as "the code has this, your spec does not".
+- **Re-import** (`POST /api/projects/{id}/reimport`,
+  `importer.reimport_into_project`, the header's "Re-import", MCP
+  `reimport_project`) is DESTRUCTIVE: it replaces all three layers, so
+  hand-drawn nodes are lost. It delegates to `import_into_project`, which is
+  what keeps the write under the project lock. The UI confirms first.
+
+A project with no `repo_path` (made by hand, or restored from the committed
+`data/projects/metaspecs.json`) has nothing to rescan: both routes 400 with
+"this project was not imported from a codebase", and the header offers
+"Attach codebase…" instead, which is the ordinary `POST /import` aimed at the
+open project rather than a new one. Attaching runs a real import, so it
+overwrites the graphs and the UI confirms when the project already has nodes.
+
+`GET /api/projects/{id}/tasks.json` serves the stored `TaskList` as a
+`Content-Disposition: attachment` download (404 before the first compile) —
+the artifact you hand to a coding agent. The drift panel renders the server's
+`text` field verbatim in a `<pre>`; that string comes from
+`diff_graphs.render_text`, the same renderer the CLI uses, and the frontend
+must not reimplement the formatting.
 
 - `tools/import_repo.py` must stay **byte-deterministic**: same tree in, same
   JSON out. No timestamps, no uuids, sorted everything. Node ids are derived
@@ -224,6 +276,9 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   `data.path` — a node added by hand in the UI has a random id and would never
   id-match its imported counterpart. Those show under "reconciled by path"
   (class nodes share their module's `path`, so only the first claims it).
+  Data and presentation are already split — `build_report()` returns a plain
+  dict, `render_text()` renders it — which is why `services/drift.py` imports
+  both instead of anything being reimplemented backend-side. Keep that split.
   `position`/`style`/`measured` are ignored unless `--include-layout`; node and
   method `notes` docstrings are compared like any other field.
 
@@ -243,13 +298,29 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
 - `Project` CRUD: `GET|POST /api/projects`, `GET|DELETE /api/projects/{id}`,
   `GET /api/projects/{id}/reports` → `ProjectReports`.
 - `GET|POST /api/projects/{id}/graph/{layer}` → `LayerGraph` (POST echoes the
-  saved graph); unknown project → 404.
+  saved graph); unknown project → 404. POST is gated by
+  `routes/graph.check_graph_integrity`: duplicate node/edge ids, an edge whose
+  source/target is not a node in that graph, or a `type` outside
+  `NODE_TYPE_NAMES` → 400 listing the problems (capped at 10). The gate is on
+  POST ONLY and never on the model or the GET path — a graph already on disk
+  that breaks these rules must still open, or the project becomes unreachable.
 - `POST /api/projects/{id}/validate` body `{"scope": str}` → `ValidationReport`
   (`scope`, `passed`, `issues[{node_id, severity: error|warning|info, message}]`);
   stored on the project.
 - `POST /api/projects/{id}/compile` body `{"scope": str}` → `TaskList`
   (`tasks[{id, title, description, depends_on[], files[]}], generated_at`);
   stored on the project.
+- **LLM payload.** Neither pass may hand raw React Flow state to a model.
+  `services/graph_payload.payload_for_llm(project_id)` returns pruned JSON for
+  all three layers: per node only `id`/`type` plus non-empty
+  `label`/`path`/`description`/`notes`/`columns`/`fields` and methods flattened
+  to signature strings; per edge only `id`/`source`/`target` plus non-empty
+  `kind`/`label`/`protocol`. `position`/`style`/`measured`, logic `steps` and
+  `calls` arrays are dropped — they are noise to the model and were most of the
+  cost (this repo's own 86-node graph went 154k chars → 88k). Over
+  `MAX_PAYLOAD_CHARS` (300k) it raises `GraphTooLargeError` → 413; it must
+  never truncate, and a big imported repo is expected to hit this rather than
+  silently overflow a context window.
 - All LLM calls go through `chat_json(role, system, user, response_model)` in
   `backend/services/llm.py` (instructor, strict JSON). Tests stub it by
   monkeypatching `chat_json` on the service module (`backend.services.validate`
@@ -270,7 +341,10 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
 - Every write helper in `storage.py` rewrites the WHOLE project file, so each
   must hold `_project_lock(project_id)` across read AND write or concurrent
   per-layer saves clobber each other. Writes go through `_atomic_write`
-  (temp file + `os.replace`).
+  (temp file + `os.replace`). Anything outside `storage.py` that needs a
+  read-modify-write must go through `storage.update_project(id, mutate)`, which
+  holds the lock for you — the import used to do its own unlocked read/write,
+  and a repo scan takes long enough that an autosave landing mid-scan was lost.
 - `GraphNode.data` is Pydantic `dict[str, Any]`; the table shape lives in
   `src/types.ts` (`TableNodeData`) and the generic shape in `ShapeNodeData`
   (`kind: rect|circle`, `label`, `items[]`). Keep both in sync when changing.
@@ -339,7 +413,8 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   class and file ↔ file is `calls`, everything else `depends-on`. An explicit
   pick overrides inference for that wire only (sticky until changed).
 - Tree hiding: `GraphCanvas` filters the rendered graph — a node is hidden
-  from the canvas while every container (service or file) it is wired to is
+  from the canvas while every container (service or file) it is wired to by a
+  membership edge (`isMembershipEdge`; a `calls` wire does not count) is
   collapsed or itself hidden (a file whose services are all collapsed is
   hidden, which hides its classes in turn); edges touching hidden nodes are
   filtered too. The store keeps the nodes; the wire tool's snap targets the

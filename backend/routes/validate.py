@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from backend.models import ValidateRequest, ValidationReport
 from backend.services import storage
 from backend.services import validate as validate_service
+from backend.services.graph_payload import GraphTooLargeError
 from backend.services.llm import LLMConfigError
 
 router = APIRouter()
@@ -17,3 +18,5 @@ def validate(project_id: str, body: ValidateRequest) -> ValidationReport:
         return validate_service.validate(project_id, body.scope)
     except LLMConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except GraphTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc

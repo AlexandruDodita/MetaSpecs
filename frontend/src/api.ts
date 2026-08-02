@@ -1,4 +1,4 @@
-import type { DirListing, ImportResult, Layer, LayerGraph, ProjectInfo, ProjectReports, TaskList, ValidationReport } from './types'
+import type { DirListing, DriftReport, ImportResult, Layer, LayerGraph, ProjectInfo, ProjectReports, TaskList, ValidationReport } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init)
@@ -69,6 +69,23 @@ export const importRepo = (projectId: string, path: string): Promise<ImportResul
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
   })
+
+export const reimportRepo = (projectId: string): Promise<ImportResult> =>
+  request<ImportResult>(`/api/projects/${projectId}/reimport`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+
+export const checkDrift = (projectId: string): Promise<DriftReport> =>
+  request<DriftReport>(`/api/projects/${projectId}/drift`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+
+export const tasksJsonUrl = (projectId: string): string =>
+  `/api/projects/${projectId}/tasks.json`
 
 export const listDirs = (path = '', showHidden = false): Promise<DirListing> =>
   request<DirListing>(

@@ -1,17 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { AppNode, ClassNodeData, FileNodeData, Method } from '../types'
-import { useGraphStore } from '../store'
+import { useGraphStore, membershipNeighbours } from '../store'
 import { Highlighted, VisibilityBadge } from './Highlighted'
 
-/** Classes wired to a node (membership = any edge in either direction). */
+/** Classes wired to a node (membership = `contains`/`depends-on` edges). */
 function useMemberClasses(nodeId: string): AppNode[] {
   const layer = useGraphStore((s) => s.activeLayer)
   const nodes = useGraphStore((s) => s.graphs[layer].nodes)
   const edges = useGraphStore((s) => s.graphs[layer].edges)
-  const members = edges
-    .filter((e) => e.source === nodeId || e.target === nodeId)
-    .map((e) => (e.source === nodeId ? e.target : e.source))
-  return nodes.filter((n) => members.includes(n.id) && n.type === 'class')
+  return useMemo(() => {
+    const neighbours = new Set(membershipNeighbours(edges).get(nodeId) ?? [])
+    return nodes.filter((n) => neighbours.has(n.id) && n.type === 'class')
+  }, [nodes, edges, nodeId])
 }
 
 /** A docstring/JSDoc block inside a tree row. */

@@ -1,6 +1,12 @@
 {
-  "metaspecs_import": 1,
-  "root": "MetaSpecs",
+  "app": "metaspecs",
+  "version": 1,
+  "id": "metaspecs",
+  "name": "MetaSpecs",
+  "created_at": "2026-08-02T00:00:00Z",
+  "updated_at": "2026-08-02T00:00:00Z",
+  "scope": "",
+  "repo_path": "",
   "graphs": {
     "backend": {
       "nodes": [
@@ -8,8 +14,8 @@
           "id": "pkg:backend",
           "type": "service",
           "position": {
-            "x": 0,
-            "y": 0
+            "x": 0.0,
+            "y": 0.0
           },
           "data": {
             "label": "backend",
@@ -25,8 +31,8 @@
           "id": "pkg:backend/routes",
           "type": "service",
           "position": {
-            "x": 400,
-            "y": 0
+            "x": 400.0,
+            "y": 0.0
           },
           "data": {
             "label": "routes",
@@ -42,8 +48,8 @@
           "id": "pkg:backend/services",
           "type": "service",
           "position": {
-            "x": 800,
-            "y": 0
+            "x": 800.0,
+            "y": 0.0
           },
           "data": {
             "label": "services",
@@ -59,8 +65,8 @@
           "id": "pkg:mcp",
           "type": "service",
           "position": {
-            "x": 1200,
-            "y": 0
+            "x": 1200.0,
+            "y": 0.0
           },
           "data": {
             "label": "mcp",
@@ -76,8 +82,8 @@
           "id": "pkg:tools",
           "type": "service",
           "position": {
-            "x": 1600,
-            "y": 0
+            "x": 1600.0,
+            "y": 0.0
           },
           "data": {
             "label": "tools",
@@ -93,8 +99,8 @@
           "id": "py:backend/main.py",
           "type": "file",
           "position": {
-            "x": 0,
-            "y": 260
+            "x": 0.0,
+            "y": 260.0
           },
           "data": {
             "label": "main",
@@ -129,8 +135,8 @@
           "id": "py:backend/models.py",
           "type": "file",
           "position": {
-            "x": 0,
-            "y": 480
+            "x": 0.0,
+            "y": 480.0
           },
           "data": {
             "label": "models",
@@ -206,8 +212,8 @@
           "id": "py:backend/models.py#CompileRequest",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 740
+            "x": 0.0,
+            "y": 740.0
           },
           "data": {
             "label": "CompileRequest",
@@ -226,8 +232,8 @@
           "id": "py:backend/models.py#CreateProjectRequest",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 860
+            "x": 0.0,
+            "y": 860.0
           },
           "data": {
             "label": "CreateProjectRequest",
@@ -246,8 +252,8 @@
           "id": "py:backend/models.py#DirEntry",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 980
+            "x": 0.0,
+            "y": 980.0
           },
           "data": {
             "label": "DirEntry",
@@ -266,8 +272,8 @@
           "id": "py:backend/models.py#DirListing",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1100
+            "x": 0.0,
+            "y": 1100.0
           },
           "data": {
             "label": "DirListing",
@@ -286,8 +292,8 @@
           "id": "py:backend/models.py#DriftReport",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1220
+            "x": 0.0,
+            "y": 1220.0
           },
           "data": {
             "label": "DriftReport",
@@ -306,8 +312,8 @@
           "id": "py:backend/models.py#DriftRequest",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1340
+            "x": 0.0,
+            "y": 1340.0
           },
           "data": {
             "label": "DriftRequest",
@@ -326,8 +332,8 @@
           "id": "py:backend/models.py#FlowElement",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1460
+            "x": 0.0,
+            "y": 1460.0
           },
           "data": {
             "label": "FlowElement",
@@ -357,8 +363,8 @@
           "id": "py:backend/models.py#GraphEdge",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1580
+            "x": 0.0,
+            "y": 1580.0
           },
           "data": {
             "label": "GraphEdge",
@@ -377,8 +383,8 @@
           "id": "py:backend/models.py#GraphNode",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1700
+            "x": 0.0,
+            "y": 1700.0
           },
           "data": {
             "label": "GraphNode",
@@ -397,8 +403,8 @@
           "id": "py:backend/models.py#ImportRequest",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1820
+            "x": 0.0,
+            "y": 1820.0
           },
           "data": {
             "label": "ImportRequest",
@@ -417,8 +423,8 @@
           "id": "py:backend/models.py#ImportResult",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 1940
+            "x": 0.0,
+            "y": 1940.0
           },
           "data": {
             "label": "ImportResult",
@@ -437,8 +443,8 @@
           "id": "py:backend/models.py#ImportStats",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2060
+            "x": 0.0,
+            "y": 2060.0
           },
           "data": {
             "label": "ImportStats",
@@ -457,8 +463,8 @@
           "id": "py:backend/models.py#Issue",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2180
+            "x": 0.0,
+            "y": 2180.0
           },
           "data": {
             "label": "Issue",
@@ -477,8 +483,8 @@
           "id": "py:backend/models.py#LayerGraph",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2300
+            "x": 0.0,
+            "y": 2300.0
           },
           "data": {
             "label": "LayerGraph",
@@ -497,8 +503,8 @@
           "id": "py:backend/models.py#Project",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2420
+            "x": 0.0,
+            "y": 2420.0
           },
           "data": {
             "label": "Project",
@@ -538,8 +544,8 @@
           "id": "py:backend/models.py#ProjectInfo",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2540
+            "x": 0.0,
+            "y": 2540.0
           },
           "data": {
             "label": "ProjectInfo",
@@ -558,8 +564,8 @@
           "id": "py:backend/models.py#ProjectList",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2660
+            "x": 0.0,
+            "y": 2660.0
           },
           "data": {
             "label": "ProjectList",
@@ -578,8 +584,8 @@
           "id": "py:backend/models.py#ProjectReports",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2780
+            "x": 0.0,
+            "y": 2780.0
           },
           "data": {
             "label": "ProjectReports",
@@ -598,8 +604,8 @@
           "id": "py:backend/models.py#ReimportRequest",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 2900
+            "x": 0.0,
+            "y": 2900.0
           },
           "data": {
             "label": "ReimportRequest",
@@ -618,8 +624,8 @@
           "id": "py:backend/models.py#Task",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 3020
+            "x": 0.0,
+            "y": 3020.0
           },
           "data": {
             "label": "Task",
@@ -638,8 +644,8 @@
           "id": "py:backend/models.py#TaskList",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 3140
+            "x": 0.0,
+            "y": 3140.0
           },
           "data": {
             "label": "TaskList",
@@ -658,8 +664,8 @@
           "id": "py:backend/models.py#ValidateRequest",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 3260
+            "x": 0.0,
+            "y": 3260.0
           },
           "data": {
             "label": "ValidateRequest",
@@ -678,8 +684,8 @@
           "id": "py:backend/models.py#ValidationReport",
           "type": "class",
           "position": {
-            "x": 0,
-            "y": 3380
+            "x": 0.0,
+            "y": 3380.0
           },
           "data": {
             "label": "ValidationReport",
@@ -698,8 +704,8 @@
           "id": "py:backend/routes/compile.py",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 260
+            "x": 400.0,
+            "y": 260.0
           },
           "data": {
             "label": "compile",
@@ -746,8 +752,8 @@
           "id": "py:backend/routes/fs.py",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 480
+            "x": 400.0,
+            "y": 480.0
           },
           "data": {
             "label": "fs",
@@ -793,8 +799,8 @@
           "id": "py:backend/routes/graph.py",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 700
+            "x": 400.0,
+            "y": 700.0
           },
           "data": {
             "label": "graph",
@@ -873,8 +879,8 @@
           "id": "py:backend/routes/imports.py",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 920
+            "x": 400.0,
+            "y": 920.0
           },
           "data": {
             "label": "imports",
@@ -939,8 +945,8 @@
           "id": "py:backend/routes/projects.py",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 1140
+            "x": 400.0,
+            "y": 1140.0
           },
           "data": {
             "label": "projects",
@@ -1032,8 +1038,8 @@
           "id": "py:backend/routes/validate.py",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 1360
+            "x": 400.0,
+            "y": 1360.0
           },
           "data": {
             "label": "validate",
@@ -1067,8 +1073,8 @@
           "id": "py:backend/services/compile.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 260
+            "x": 800.0,
+            "y": 260.0
           },
           "data": {
             "label": "compile",
@@ -1120,8 +1126,8 @@
           "id": "py:backend/services/drift.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 480
+            "x": 800.0,
+            "y": 480.0
           },
           "data": {
             "label": "drift",
@@ -1157,8 +1163,8 @@
           "id": "py:backend/services/graph_payload.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 700
+            "x": 800.0,
+            "y": 700.0
           },
           "data": {
             "label": "graph_payload",
@@ -1237,8 +1243,8 @@
           "id": "py:backend/services/graph_payload.py#GraphTooLargeError",
           "type": "class",
           "position": {
-            "x": 800,
-            "y": 960
+            "x": 800.0,
+            "y": 960.0
           },
           "data": {
             "label": "GraphTooLargeError",
@@ -1257,8 +1263,8 @@
           "id": "py:backend/services/importer.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 920
+            "x": 800.0,
+            "y": 920.0
           },
           "data": {
             "label": "importer",
@@ -1307,8 +1313,8 @@
           "id": "py:backend/services/importer.py#ImportPathError",
           "type": "class",
           "position": {
-            "x": 800,
-            "y": 1180
+            "x": 800.0,
+            "y": 1180.0
           },
           "data": {
             "label": "ImportPathError",
@@ -1327,8 +1333,8 @@
           "id": "py:backend/services/importer.py#ProjectMissing",
           "type": "class",
           "position": {
-            "x": 800,
-            "y": 1300
+            "x": 800.0,
+            "y": 1300.0
           },
           "data": {
             "label": "ProjectMissing",
@@ -1347,8 +1353,8 @@
           "id": "py:backend/services/llm.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1140
+            "x": 800.0,
+            "y": 1140.0
           },
           "data": {
             "label": "llm",
@@ -1434,8 +1440,8 @@
           "id": "py:backend/services/llm.py#LLMConfigError",
           "type": "class",
           "position": {
-            "x": 800,
-            "y": 1400
+            "x": 800.0,
+            "y": 1400.0
           },
           "data": {
             "label": "LLMConfigError",
@@ -1454,8 +1460,8 @@
           "id": "py:backend/services/llm.py#RoleConfig",
           "type": "class",
           "position": {
-            "x": 800,
-            "y": 1520
+            "x": 800.0,
+            "y": 1520.0
           },
           "data": {
             "label": "RoleConfig",
@@ -1474,8 +1480,8 @@
           "id": "py:backend/services/storage.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1360
+            "x": 800.0,
+            "y": 1360.0
           },
           "data": {
             "label": "storage",
@@ -1700,8 +1706,8 @@
           "id": "py:backend/services/storage.py#ProjectNotFound",
           "type": "class",
           "position": {
-            "x": 800,
-            "y": 1620
+            "x": 800.0,
+            "y": 1620.0
           },
           "data": {
             "label": "ProjectNotFound",
@@ -1720,8 +1726,8 @@
           "id": "py:backend/services/validate.py",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1580
+            "x": 800.0,
+            "y": 1580.0
           },
           "data": {
             "label": "validate",
@@ -1763,8 +1769,8 @@
           "id": "py:mcp/server.py",
           "type": "file",
           "position": {
-            "x": 1200,
-            "y": 260
+            "x": 1200.0,
+            "y": 260.0
           },
           "data": {
             "label": "server",
@@ -2080,8 +2086,8 @@
           "id": "py:tools/diff_graphs.py",
           "type": "file",
           "position": {
-            "x": 1600,
-            "y": 260
+            "x": 1600.0,
+            "y": 260.0
           },
           "data": {
             "label": "diff_graphs",
@@ -2332,8 +2338,8 @@
           "id": "py:tools/import_repo.py",
           "type": "file",
           "position": {
-            "x": 1600,
-            "y": 480
+            "x": 1600.0,
+            "y": 480.0
           },
           "data": {
             "label": "import_repo",
@@ -3379,8 +3385,8 @@
           "id": "py:tools/import_repo.py#Ignores",
           "type": "class",
           "position": {
-            "x": 1600,
-            "y": 740
+            "x": 1600.0,
+            "y": 740.0
           },
           "data": {
             "label": "Ignores",
@@ -3430,8 +3436,8 @@
           "id": "py:tools/import_repo.py#Module",
           "type": "class",
           "position": {
-            "x": 1600,
-            "y": 860
+            "x": 1600.0,
+            "y": 860.0
           },
           "data": {
             "label": "Module",
@@ -3471,8 +3477,8 @@
           "id": "py:tools/import_repo.py#ScanLimitError",
           "type": "class",
           "position": {
-            "x": 1600,
-            "y": 980
+            "x": 1600.0,
+            "y": 980.0
           },
           "data": {
             "label": "ScanLimitError",
@@ -4437,8 +4443,8 @@
           "id": "js:frontend/e2e-smoke.mjs",
           "type": "file",
           "position": {
-            "x": 0,
-            "y": 260
+            "x": 0.0,
+            "y": 260.0
           },
           "data": {
             "label": "e2e-smoke",
@@ -5599,8 +5605,8 @@
           "id": "pkg:frontend",
           "type": "service",
           "position": {
-            "x": 0,
-            "y": 0
+            "x": 0.0,
+            "y": 0.0
           },
           "data": {
             "label": "frontend",
@@ -5616,8 +5622,8 @@
           "id": "pkg:frontend/src",
           "type": "service",
           "position": {
-            "x": 400,
-            "y": 0
+            "x": 400.0,
+            "y": 0.0
           },
           "data": {
             "label": "src",
@@ -5633,8 +5639,8 @@
           "id": "pkg:frontend/src/components",
           "type": "service",
           "position": {
-            "x": 800,
-            "y": 0
+            "x": 800.0,
+            "y": 0.0
           },
           "data": {
             "label": "components",
@@ -5650,8 +5656,8 @@
           "id": "pkg:frontend/src/menu",
           "type": "service",
           "position": {
-            "x": 1200,
-            "y": 0
+            "x": 1200.0,
+            "y": 0.0
           },
           "data": {
             "label": "menu",
@@ -5667,8 +5673,8 @@
           "id": "ts:frontend/src/App.tsx",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 260
+            "x": 400.0,
+            "y": 260.0
           },
           "data": {
             "label": "App",
@@ -5726,8 +5732,8 @@
           "id": "ts:frontend/src/api.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 480
+            "x": 400.0,
+            "y": 480.0
           },
           "data": {
             "label": "api",
@@ -5897,8 +5903,8 @@
           "id": "ts:frontend/src/components/ClassNode.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 260
+            "x": 800.0,
+            "y": 260.0
           },
           "data": {
             "label": "ClassNode",
@@ -6003,8 +6009,8 @@
           "id": "ts:frontend/src/components/ContextMenu.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 480
+            "x": 800.0,
+            "y": 480.0
           },
           "data": {
             "label": "ContextMenu",
@@ -6065,8 +6071,8 @@
           "id": "ts:frontend/src/components/DirectoryPicker.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 700
+            "x": 800.0,
+            "y": 700.0
           },
           "data": {
             "label": "DirectoryPicker",
@@ -6105,8 +6111,8 @@
           "id": "ts:frontend/src/components/FileNode.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 920
+            "x": 800.0,
+            "y": 920.0
           },
           "data": {
             "label": "FileNode",
@@ -6177,8 +6183,8 @@
           "id": "ts:frontend/src/components/GraphCanvas.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1140
+            "x": 800.0,
+            "y": 1140.0
           },
           "data": {
             "label": "GraphCanvas",
@@ -6282,8 +6288,8 @@
           "id": "ts:frontend/src/components/Highlighted.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1360
+            "x": 800.0,
+            "y": 1360.0
           },
           "data": {
             "label": "Highlighted",
@@ -6326,8 +6332,8 @@
           "id": "ts:frontend/src/components/NodeMeta.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1580
+            "x": 800.0,
+            "y": 1580.0
           },
           "data": {
             "label": "NodeMeta",
@@ -6368,8 +6374,8 @@
           "id": "ts:frontend/src/components/NodeSideHandles.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 1800
+            "x": 800.0,
+            "y": 1800.0
           },
           "data": {
             "label": "NodeSideHandles",
@@ -6399,8 +6405,8 @@
           "id": "ts:frontend/src/components/PreviewNode.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 2020
+            "x": 800.0,
+            "y": 2020.0
           },
           "data": {
             "label": "PreviewNode",
@@ -6430,8 +6436,8 @@
           "id": "ts:frontend/src/components/ProjectPicker.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 2240
+            "x": 800.0,
+            "y": 2240.0
           },
           "data": {
             "label": "ProjectPicker",
@@ -6483,8 +6489,8 @@
           "id": "ts:frontend/src/components/ServiceNode.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 2460
+            "x": 800.0,
+            "y": 2460.0
           },
           "data": {
             "label": "ServiceNode",
@@ -6561,8 +6567,8 @@
           "id": "ts:frontend/src/components/ShapeNode.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 2680
+            "x": 800.0,
+            "y": 2680.0
           },
           "data": {
             "label": "ShapeNode",
@@ -6621,8 +6627,8 @@
           "id": "ts:frontend/src/components/TableNode.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 2900
+            "x": 800.0,
+            "y": 2900.0
           },
           "data": {
             "label": "TableNode",
@@ -6721,8 +6727,8 @@
           "id": "ts:frontend/src/components/Toolbar.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 3120
+            "x": 800.0,
+            "y": 3120.0
           },
           "data": {
             "label": "Toolbar",
@@ -6768,8 +6774,8 @@
           "id": "ts:frontend/src/components/Tree.tsx",
           "type": "file",
           "position": {
-            "x": 800,
-            "y": 3340
+            "x": 800.0,
+            "y": 3340.0
           },
           "data": {
             "label": "Tree",
@@ -6843,8 +6849,8 @@
           "id": "ts:frontend/src/geometry.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 700
+            "x": 400.0,
+            "y": 700.0
           },
           "data": {
             "label": "geometry",
@@ -6935,8 +6941,8 @@
           "id": "ts:frontend/src/highlight.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 920
+            "x": 400.0,
+            "y": 920.0
           },
           "data": {
             "label": "highlight",
@@ -7067,8 +7073,8 @@
           "id": "ts:frontend/src/main.tsx",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 1140
+            "x": 400.0,
+            "y": 1140.0
           },
           "data": {
             "label": "main",
@@ -7087,8 +7093,8 @@
           "id": "ts:frontend/src/menu/builders.ts",
           "type": "file",
           "position": {
-            "x": 1200,
-            "y": 260
+            "x": 1200.0,
+            "y": 260.0
           },
           "data": {
             "label": "builders",
@@ -7153,8 +7159,8 @@
           "id": "ts:frontend/src/menu/types.ts",
           "type": "file",
           "position": {
-            "x": 1200,
-            "y": 480
+            "x": 1200.0,
+            "y": 480.0
           },
           "data": {
             "label": "types",
@@ -7189,8 +7195,8 @@
           "id": "ts:frontend/src/menu/types.ts#MenuAction",
           "type": "class",
           "position": {
-            "x": 1200,
-            "y": 740
+            "x": 1200.0,
+            "y": 740.0
           },
           "data": {
             "label": "MenuAction",
@@ -7220,8 +7226,8 @@
           "id": "ts:frontend/src/menu/types.ts#MenuItemBase",
           "type": "class",
           "position": {
-            "x": 1200,
-            "y": 860
+            "x": 1200.0,
+            "y": 860.0
           },
           "data": {
             "label": "MenuItemBase",
@@ -7251,8 +7257,8 @@
           "id": "ts:frontend/src/menu/types.ts#MenuSeparator",
           "type": "class",
           "position": {
-            "x": 1200,
-            "y": 980
+            "x": 1200.0,
+            "y": 980.0
           },
           "data": {
             "label": "MenuSeparator",
@@ -7282,8 +7288,8 @@
           "id": "ts:frontend/src/menu/types.ts#MenuSubmenu",
           "type": "class",
           "position": {
-            "x": 1200,
-            "y": 1100
+            "x": 1200.0,
+            "y": 1100.0
           },
           "data": {
             "label": "MenuSubmenu",
@@ -7313,8 +7319,8 @@
           "id": "ts:frontend/src/nodeFactory.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 1360
+            "x": 400.0,
+            "y": 1360.0
           },
           "data": {
             "label": "nodeFactory",
@@ -7455,8 +7461,8 @@
           "id": "ts:frontend/src/schema-options.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 1580
+            "x": 400.0,
+            "y": 1580.0
           },
           "data": {
             "label": "schema-options",
@@ -7486,8 +7492,8 @@
           "id": "ts:frontend/src/store.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 1800
+            "x": 400.0,
+            "y": 1800.0
           },
           "data": {
             "label": "store",
@@ -7733,8 +7739,8 @@
           "id": "ts:frontend/src/types.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 2020
+            "x": 400.0,
+            "y": 2020.0
           },
           "data": {
             "label": "types",
@@ -7924,8 +7930,8 @@
           "id": "ts:frontend/src/useAutosave.ts",
           "type": "file",
           "position": {
-            "x": 400,
-            "y": 2240
+            "x": 400.0,
+            "y": 2240.0
           },
           "data": {
             "label": "useAutosave",
@@ -7958,8 +7964,8 @@
           "id": "ts:frontend/vite.config.ts",
           "type": "file",
           "position": {
-            "x": 0,
-            "y": 480
+            "x": 0.0,
+            "y": 480.0
           },
           "data": {
             "label": "vite.config",
@@ -9051,22 +9057,6 @@
       ]
     }
   },
-  "skipped_cross_layer": [],
-  "stats": {
-    "files_scanned": 47,
-    "files_skipped": 0,
-    "by_language": {
-      "javascript": 1,
-      "python": 18,
-      "typescript": 28
-    },
-    "by_layer": {
-      "backend": 18,
-      "db": 0,
-      "frontend": 29
-    },
-    "node_count": 92,
-    "edge_count": 251,
-    "warnings": []
-  }
+  "validation": null,
+  "tasks": null
 }

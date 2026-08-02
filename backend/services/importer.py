@@ -8,6 +8,7 @@ from backend.models import (
     ImportResult,
     ImportStats,
     LayerGraph,
+    Project,
     now_utc,
 )
 from backend.services import storage
@@ -42,23 +43,26 @@ def import_into_project(project_id: str, raw_path: str, max_files: int) -> Impor
 
     data = import_repo.build(path, max_files or import_repo.DEFAULT_MAX_FILES)
 
-    project = storage.read_project(project_id)
-    if project is None:
-        raise ProjectMissing(project_id)
+    def _mutate(project: Project) -> None:
+        # Only the server knows what the path resolves to, so a first import
+        # names the project after the scanned root. A re-import keeps the name
+        # the user has since given it.
+        if not project.repo_path and not any(
+            g.nodes for g in project.graphs.values()
+        ):
+            project.name = data.get("root") or project.name
 
-    # Only the server knows what the path resolves to, so a first import names
-    # the project after the scanned root. A re-import keeps the name the user
-    # has since given it.
-    if not project.repo_path and not any(g.nodes for g in project.graphs.values()):
-        project.name = data.get("root") or project.name
+        for layer in LAYER_NAMES:
+            project.graphs[layer] = LayerGraph.model_validate(
+                data["graphs"].get(layer, {})
+            )
+        project.repo_path = str(path)
+        project.updated_at = now_utc()
 
-    for layer in LAYER_NAMES:
-        project.graphs[layer] = LayerGraph.model_validate(
-            data["graphs"].get(layer, {})
-        )
-    project.repo_path = str(path)
-    project.updated_at = now_utc()
-    storage.write_project(project)
+    try:
+        project = storage.update_project(project_id, _mutate)
+    except storage.ProjectNotFound as exc:
+        raise ProjectMissing(project_id) from exc
 
     return ImportResult(
         project_id=project_id,
@@ -67,3 +71,17 @@ def import_into_project(project_id: str, raw_path: str, max_files: int) -> Impor
         stats=ImportStats.model_validate(data.get("stats", {})),
         layers={layer: len(project.graphs[layer].nodes) for layer in LAYER_NAMES},
     )
+
+
+def reimport_into_project(project_id: str, max_files: int) -> ImportResult:
+    """Rescan the project's stored repo_path and overwrite its graphs.
+
+    Destructive: the scan replaces all three layers, so hand-drawn nodes are
+    lost. The lock stays inside import_into_project (via update_project).
+    """
+    project = storage.read_project(project_id)
+    if project is None:
+        raise ProjectMissing(project_id)
+    if not project.repo_path:
+        raise ImportPathError("this project was not imported from a codebase")
+    return import_into_project(project_id, project.repo_path, max_files)

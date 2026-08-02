@@ -29,7 +29,7 @@ SKIP_DIRS = {
     "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache",
     "dist", "build", "out", "target", "vendor", "coverage", ".cache",
     ".next", ".nuxt", ".svelte-kit", ".idea", ".vscode", ".gradle",
-    "bin", "obj", "Pods", "DerivedData", "data",
+    "bin", "obj", "Pods", "DerivedData",
 }
 
 

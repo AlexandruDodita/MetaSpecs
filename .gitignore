@@ -3,4 +3,10 @@ __pycache__/
 .venv/
 node_modules/
 frontend/dist/
-data/
+
+# Runtime project storage. Only MetaSpecs' own architecture is tracked
+# (data/projects/metaspecs.json); every other project on this machine is local.
+data/*
+!data/projects/
+data/projects/*
+!data/projects/metaspecs.json

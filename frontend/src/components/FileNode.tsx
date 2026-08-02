@@ -1,21 +1,22 @@
+import { useMemo } from 'react'
 import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
 import type { AppNode, ClassNodeData, FileNodeData } from '../types'
-import { useGraphStore, isExpanded } from '../store'
+import { useGraphStore, isExpanded, membershipNeighbours } from '../store'
 import { TreeClassRow, TreeMethodRow } from './Tree'
 import NodeSideHandles from './NodeSideHandles'
 import { NodeMeta } from './NodeMeta'
 
-/** Classes wired to the file (membership = any edge in either direction). */
+/** Classes wired to the file (membership = `contains`/`depends-on` edges). */
 function useMemberClasses(nodeId: string): AppNode[] {
   const layer = useGraphStore((s) => s.activeLayer)
   const nodes = useGraphStore((s) => s.graphs[layer].nodes)
   const edges = useGraphStore((s) => s.graphs[layer].edges)
-  const members = edges
-    .filter((e) => e.source === nodeId || e.target === nodeId)
-    .map((e) => (e.source === nodeId ? e.target : e.source))
-  return nodes.filter((n) => members.includes(n.id) && n.type === 'class')
+  return useMemo(() => {
+    const neighbours = new Set(membershipNeighbours(edges).get(nodeId) ?? [])
+    return nodes.filter((n) => neighbours.has(n.id) && n.type === 'class')
+  }, [nodes, edges, nodeId])
 }
 
 function FileEditForm({

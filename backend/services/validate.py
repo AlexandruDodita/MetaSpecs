@@ -1,16 +1,10 @@
 """LLM validation pass: check the three graphs against the stated scope."""
 from __future__ import annotations
 
-from backend.models import LAYER_NAMES, Issue, ValidationReport
+from backend.models import Issue, ValidationReport
 from backend.services import storage
+from backend.services.graph_payload import payload_for_llm
 from backend.services.llm import chat_json
-
-
-def _graph_payload(project_id: str) -> dict:
-    return {
-        layer: storage.read_graph(project_id, layer).model_dump()
-        for layer in LAYER_NAMES
-    }
 
 
 SYSTEM_PROMPT = (
@@ -21,7 +15,7 @@ SYSTEM_PROMPT = (
 
 
 def validate(project_id: str, scope: str) -> ValidationReport:
-    payload = _graph_payload(project_id)
+    payload = payload_for_llm(project_id)
     report = chat_json(
         "orchestrator",
         SYSTEM_PROMPT,
