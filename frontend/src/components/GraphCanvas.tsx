@@ -23,7 +23,13 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import '@xyflow/react/dist/style.css'
 import type { AppNode, EdgeKind, Layer } from '../types'
 import { EDGE_KINDS } from '../types'
-import { useGraphStore, useLayerNodes, useLayerEdges, isExpanded } from '../store'
+import {
+  useGraphStore,
+  useLayerNodes,
+  useLayerEdges,
+  isExpanded,
+  membershipNeighbours,
+} from '../store'
 import type { PlaceableTool, WireKind } from '../store'
 import { buildEdgeMenu, buildNodeMenu, buildPaneMenu } from '../menu/builders'
 import { ContextMenu } from './ContextMenu'
@@ -162,13 +168,10 @@ function CanvasInner({ layer }: { layer: Layer }) {
     const fileIds = new Set(
       nodes.filter((n) => n.type === 'file').map((n) => n.id),
     )
-    const connectedIds = (nodeId: string) =>
-      edges
-        .filter((e) => e.source === nodeId || e.target === nodeId)
-        .map((e) => (e.source === nodeId ? e.target : e.source))
+    const neighbours = membershipNeighbours(edges)
     const hidden = new Set<string>()
     const fileHidden = (fid: string): boolean => {
-      const services = connectedIds(fid).filter((id) => serviceIds.has(id))
+      const services = (neighbours.get(fid) ?? []).filter((id) => serviceIds.has(id))
       return (
         services.length > 0 &&
         !services.some((sid) => isExpanded(expanded, sid, 'service'))
@@ -179,7 +182,7 @@ function CanvasInner({ layer }: { layer: Layer }) {
     }
     for (const n of nodes) {
       if (n.type !== 'class') continue
-      const containers = connectedIds(n.id).filter(
+      const containers = (neighbours.get(n.id) ?? []).filter(
         (id) => serviceIds.has(id) || fileIds.has(id),
       )
       const expandedContainer =

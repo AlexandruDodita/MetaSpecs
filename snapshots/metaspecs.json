@@ -5787,7 +5787,7 @@
             "label": "FileNode",
             "path": "frontend/src/components/FileNode.tsx",
             "description": "",
-            "notes": "Classes wired to the file (membership = any edge in either direction).",
+            "notes": "Classes wired to the file (membership = `contains`/`depends-on` edges).",
             "fields": [],
             "methods": [
               {
@@ -5798,8 +5798,9 @@
                 "returnType": "",
                 "params": "nodeId",
                 "steps": [],
-                "notes": "Classes wired to the file (membership = any edge in either direction).",
+                "notes": "Classes wired to the file (membership = `contains`/`depends-on` edges).",
                 "calls": [
+                  "store.ts.membershipNeighbours",
                   "store.ts.useGraphStore"
                 ]
               },
@@ -5933,13 +5934,7 @@
                 "returnType": "",
                 "params": "layer",
                 "steps": [],
-                "notes": "",
-                "calls": [
-                  "store.ts.isExpanded",
-                  "store.ts.useGraphStore",
-                  "store.ts.useLayerEdges",
-                  "store.ts.useLayerNodes"
-                ]
+                "notes": ""
               },
               {
                 "id": "GraphCanvas",
@@ -6170,7 +6165,7 @@
             "label": "ServiceNode",
             "path": "frontend/src/components/ServiceNode.tsx",
             "description": "",
-            "notes": "Files and classes wired to the service (membership = any edge in either direction).",
+            "notes": "Files and classes wired to the service (membership = `contains`/`depends-on` edges).",
             "fields": [],
             "methods": [
               {
@@ -6181,7 +6176,7 @@
                 "returnType": "",
                 "params": "nodeId",
                 "steps": [],
-                "notes": "Files and classes wired to the service (membership = any edge in either direction)."
+                "notes": "Files and classes wired to the service (membership = `contains`/`depends-on` edges)."
               },
               {
                 "id": "ServiceEditForm",
@@ -6455,7 +6450,7 @@
             "label": "Tree",
             "path": "frontend/src/components/Tree.tsx",
             "description": "",
-            "notes": "Classes wired to a node (membership = any edge in either direction).",
+            "notes": "Classes wired to a node (membership = `contains`/`depends-on` edges).",
             "fields": [],
             "methods": [
               {
@@ -6466,8 +6461,9 @@
                 "returnType": "",
                 "params": "nodeId",
                 "steps": [],
-                "notes": "Classes wired to a node (membership = any edge in either direction).",
+                "notes": "Classes wired to a node (membership = `contains`/`depends-on` edges).",
                 "calls": [
+                  "store.ts.membershipNeighbours",
                   "store.ts.useGraphStore"
                 ]
               },
@@ -7240,6 +7236,36 @@
                 "params": "expanded, nodeId, kind",
                 "steps": [],
                 "notes": "The single reading of the shared `expanded` map."
+              },
+              {
+                "id": "MEMBERSHIP_KINDS",
+                "kind": "",
+                "name": "MEMBERSHIP_KINDS",
+                "visibility": "public",
+                "returnType": "",
+                "params": "",
+                "steps": [],
+                "notes": "Edge kinds that express containment. `depends-on` is in because pre-`kind`\nedges read back as `depends-on` and there is no migration; `calls`\n(workflow) must never imply membership."
+              },
+              {
+                "id": "isMembershipEdge",
+                "kind": "",
+                "name": "isMembershipEdge",
+                "visibility": "public",
+                "returnType": "",
+                "params": "edge",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "membershipNeighbours",
+                "kind": "",
+                "name": "membershipNeighbours",
+                "visibility": "public",
+                "returnType": "",
+                "params": "edges",
+                "steps": [],
+                "notes": "nodeId -> ids of nodes it shares a membership edge with (either direction)."
               },
               {
                 "id": "pushHistory",
@@ -8072,7 +8098,7 @@
           "id": "e:ts:frontend/src/components/FileNode.tsx-->ts:frontend/src/store.ts-2",
           "source": "ts:frontend/src/components/FileNode.tsx",
           "target": "ts:frontend/src/store.ts",
-          "label": "isExpanded, useGraphStore",
+          "label": "isExpanded, membershipNeighbours, useGr\u2026",
           "kind": "calls",
           "protocol": ""
         },
@@ -8197,14 +8223,6 @@
           "protocol": "in-process"
         },
         {
-          "id": "e:ts:frontend/src/components/GraphCanvas.tsx-->ts:frontend/src/store.ts-2",
-          "source": "ts:frontend/src/components/GraphCanvas.tsx",
-          "target": "ts:frontend/src/store.ts",
-          "label": "isExpanded, useGraphStore, useLayerEdge\u2026",
-          "kind": "calls",
-          "protocol": ""
-        },
-        {
           "id": "e:ts:frontend/src/components/GraphCanvas.tsx-->ts:frontend/src/types.ts",
           "source": "ts:frontend/src/components/GraphCanvas.tsx",
           "target": "ts:frontend/src/types.ts",
@@ -8320,7 +8338,7 @@
           "id": "e:ts:frontend/src/components/ServiceNode.tsx-->ts:frontend/src/store.ts-2",
           "source": "ts:frontend/src/components/ServiceNode.tsx",
           "target": "ts:frontend/src/store.ts",
-          "label": "isExpanded, useGraphStore",
+          "label": "isExpanded, membershipNeighbours, useGr\u2026",
           "kind": "calls",
           "protocol": ""
         },
@@ -8456,7 +8474,7 @@
           "id": "e:ts:frontend/src/components/Tree.tsx-->ts:frontend/src/store.ts-2",
           "source": "ts:frontend/src/components/Tree.tsx",
           "target": "ts:frontend/src/store.ts",
-          "label": "useGraphStore",
+          "label": "membershipNeighbours, useGraphStore",
           "kind": "calls",
           "protocol": ""
         },
@@ -8710,7 +8728,7 @@
       "frontend": 29
     },
     "node_count": 88,
-    "edge_count": 237,
+    "edge_count": 236,
     "warnings": []
   }
 }

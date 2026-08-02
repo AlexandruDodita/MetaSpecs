@@ -55,6 +55,30 @@ export const isExpanded = (
   kind: 'class' | 'service' | 'file',
 ): boolean => expanded[nodeId] ?? EXPANDED_BY_DEFAULT[kind]
 
+/** Edge kinds that express containment. `depends-on` is in because pre-`kind`
+ *  edges read back as `depends-on` and there is no migration; `calls`
+ *  (workflow) must never imply membership. */
+export const MEMBERSHIP_KINDS: ReadonlySet<EdgeKind> = new Set(['contains', 'depends-on'])
+
+export const isMembershipEdge = (edge: AppEdge): boolean =>
+  MEMBERSHIP_KINDS.has(edge.kind ?? 'depends-on')
+
+/** nodeId -> ids of nodes it shares a membership edge with (either direction). */
+export function membershipNeighbours(edges: AppEdge[]): Map<string, string[]> {
+  const neighbours = new Map<string, string[]>()
+  const add = (a: string, b: string) => {
+    const list = neighbours.get(a)
+    if (list) list.push(b)
+    else neighbours.set(a, [b])
+  }
+  for (const edge of edges) {
+    if (!isMembershipEdge(edge)) continue
+    add(edge.source, edge.target)
+    add(edge.target, edge.source)
+  }
+  return neighbours
+}
+
 /** Live drag-to-draw rectangle in flow coordinates. */
 export interface Drawing {
   kind: ShapeKind | 'table' | 'class' | 'service' | 'file'

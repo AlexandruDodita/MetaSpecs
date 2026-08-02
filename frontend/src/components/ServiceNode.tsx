@@ -1,25 +1,26 @@
+import { useMemo } from 'react'
 import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
 import type { AppNode, ClassNodeData, FileNodeData, ServiceNodeData } from '../types'
-import { useGraphStore, isExpanded } from '../store'
+import { useGraphStore, isExpanded, membershipNeighbours } from '../store'
 import { TreeClassRow, TreeFileRow } from './Tree'
 import NodeSideHandles from './NodeSideHandles'
 import { NodeMeta } from './NodeMeta'
 
-/** Files and classes wired to the service (membership = any edge in either direction). */
+/** Files and classes wired to the service (membership = `contains`/`depends-on` edges). */
 function useMembers(nodeId: string): { files: AppNode[]; classes: AppNode[] } {
   const layer = useGraphStore((s) => s.activeLayer)
   const nodes = useGraphStore((s) => s.graphs[layer].nodes)
   const edges = useGraphStore((s) => s.graphs[layer].edges)
-  const members = edges
-    .filter((e) => e.source === nodeId || e.target === nodeId)
-    .map((e) => (e.source === nodeId ? e.target : e.source))
-  const memberNodes = nodes.filter((n) => members.includes(n.id))
-  return {
-    files: memberNodes.filter((n) => n.type === 'file'),
-    classes: memberNodes.filter((n) => n.type === 'class'),
-  }
+  return useMemo(() => {
+    const neighbours = new Set(membershipNeighbours(edges).get(nodeId) ?? [])
+    const memberNodes = nodes.filter((n) => neighbours.has(n.id))
+    return {
+      files: memberNodes.filter((n) => n.type === 'file'),
+      classes: memberNodes.filter((n) => n.type === 'class'),
+    }
+  }, [nodes, edges, nodeId])
 }
 
 function ServiceEditForm({
