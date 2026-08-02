@@ -353,6 +353,79 @@ button:disabled {
   font-size: 12px;
 }
 
+.tasks__download {
+  display: inline-block;
+  font-size: 12px;
+  color: #7a8bff;
+  text-decoration: none;
+  margin-bottom: 8px;
+}
+
+.tasks__download:hover {
+  color: #a9bce8;
+  text-decoration: underline;
+}
+
+/* ---- Drift panel ---- */
+
+.drift {
+  position: relative;
+  background: #22232a;
+  border: 1px solid #34363f;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 12px;
+}
+
+.drift h2 {
+  margin: 0 0 6px;
+}
+
+.drift__dismiss {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: #8a8b93;
+  font-size: 14px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.drift__dismiss:hover {
+  color: #e6e6e6;
+}
+
+.drift__source {
+  font-size: 12px;
+  color: #b8b9c0;
+  margin: 0 0 6px;
+}
+
+.drift__source code {
+  font-size: 11px;
+  font-family: monospace;
+  color: #8a8b93;
+  word-break: break-all;
+}
+
+.drift__text {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c8c9d0;
+  background: #1a1c21;
+  border: 1px solid #34363f;
+  border-radius: 6px;
+  padding: 8px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
 /* ---- Context menu ---- */
 
 .menu {
@@ -1363,6 +1436,34 @@ button:disabled {
   padding: 3px 8px;
   font-size: 12px;
   background: #26272e;
+}
+
+/* ---- Header sync group: check drift (read-only) vs re-import (destructive) ---- */
+
+.header__sync {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid #34363f;
+  border-radius: 6px;
+  background: #16171b;
+}
+
+.header__sync button {
+  padding: 3px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.header__sync-drift:hover:not(:disabled),
+.header__sync-attach:hover:not(:disabled) {
+  border-color: #4a67a8;
+}
+
+.header__sync-reimport:hover:not(:disabled) {
+  background: #4a2a2a;
+  border-color: #8a4a4a;
 }
 
 /* ---- Class node ---- */

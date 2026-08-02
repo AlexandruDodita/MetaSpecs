@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Layer, ProjectInfo, TaskList, ValidationReport } from './types'
+import type { DriftReport, Layer, ProjectInfo, TaskList, ValidationReport } from './types'
 import { useGraphStore } from './store'
 import { GraphCanvas } from './components/GraphCanvas'
 import { ProjectPicker } from './components/ProjectPicker'
+import { DirectoryPicker } from './components/DirectoryPicker'
 import { Toolbar } from './components/Toolbar'
 import { useAutosave } from './useAutosave'
-import { getProject, getProjectReports, runCompile, runValidate } from './api'
+import { checkDrift, getProject, getProjectReports, importRepo, reimportRepo, runCompile, runValidate, tasksJsonUrl } from './api'
 
 const PROJECT_KEY = 'metaspecs.activeProjectId'
 
@@ -36,6 +37,8 @@ function App() {
   const [scope, setScope] = useState('')
   const [report, setReport] = useState<ValidationReport | null>(null)
   const [tasks, setTasks] = useState<TaskList | null>(null)
+  const [drift, setDrift] = useState<DriftReport | null>(null)
+  const [attaching, setAttaching] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,6 +69,7 @@ function App() {
     setError(null)
     setReport(null)
     setTasks(null)
+    setDrift(null)
     localStorage.setItem(PROJECT_KEY, info.id)
     setProject(info)
     try {
@@ -91,6 +95,7 @@ function App() {
     setProject(null)
     setReport(null)
     setTasks(null)
+    setDrift(null)
     setScope('')
   }
 
@@ -131,6 +136,62 @@ function App() {
     }
   }
 
+  const checkDriftAction = async () => {
+    if (!project) return
+    setBusy('drift')
+    setError(null)
+    try {
+      setDrift(await checkDrift(project.id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const reimport = async () => {
+    if (!project) return
+    if (!window.confirm(
+      `Re-import replaces all three layers from ${project.repo_path}. Nodes you drew by hand will be lost. Continue?`,
+    )) return
+    setBusy('reimport')
+    setError(null)
+    try {
+      await reimportRepo(project.id)
+      await useGraphStore.getState().loadAll()
+      setDrift(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // A project made by hand (or restored from a committed file) has no
+  // repo_path, so there is nothing to rescan. Attaching one is the same
+  // /import call the picker makes — it just targets the open project instead
+  // of a new one, which is what puts drift and re-import within reach.
+  const attachCodebase = async (path: string) => {
+    if (!project) return
+    setAttaching(false)
+    // Attaching runs a real import, so it overwrites whatever is already drawn.
+    if (project.node_count > 0 && !window.confirm(
+      `Scanning ${path} replaces all three layers of "${project.name}". Nodes you drew by hand will be lost. Continue?`,
+    )) return
+    setBusy('attach')
+    setError(null)
+    try {
+      await importRepo(project.id, path)
+      setProject(await getProject(project.id))
+      await useGraphStore.getState().loadAll()
+      setDrift(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (booting) return <div className="app app--boot" />
 
   if (!project) {
@@ -149,6 +210,38 @@ function App() {
             Projects
           </button>
         </div>
+        {!project.repo_path && (
+          <div className="header__sync">
+            <button
+              className="header__sync-attach"
+              onClick={() => { setError(null); setAttaching(true) }}
+              disabled={busy !== null}
+              title="Point this project at a codebase on disk, so it can be rescanned for drift."
+            >
+              {busy === 'attach' ? 'Scanning…' : 'Attach codebase…'}
+            </button>
+          </div>
+        )}
+        {project.repo_path && (
+          <div className="header__sync">
+            <button
+              className="header__sync-drift"
+              onClick={checkDriftAction}
+              disabled={busy !== null}
+              title="Rescan the repo and report how it has moved from the stored graph. Read-only."
+            >
+              {busy === 'drift' ? 'Checking…' : 'Check drift'}
+            </button>
+            <button
+              className="header__sync-reimport"
+              onClick={reimport}
+              disabled={busy !== null}
+              title="Overwrite all three layers from the repo scan. Destructive — hand-drawn nodes are lost."
+            >
+              {busy === 'reimport' ? 'Re-importing…' : 'Re-import'}
+            </button>
+          </div>
+        )}
         <div className="tabs">
           {LAYERS.map(({ key, label }) => (
             <button
@@ -230,9 +323,40 @@ function App() {
             </section>
           )}
 
+          {drift && (
+            <section className="drift">
+              <button
+                className="drift__dismiss"
+                title="Dismiss"
+                onClick={() => setDrift(null)}
+              >
+                ×
+              </button>
+              <h2>
+                Drift{' '}
+                <span className={drift.drift ? 'fail' : 'ok'}>
+                  {drift.drift
+                    ? `${drift.totals.total} ${drift.totals.total === 1 ? 'difference' : 'differences'}`
+                    : 'IN SYNC'}
+                </span>
+              </h2>
+              <p className="drift__source">
+                <strong>{drift.root}</strong> — <code>{drift.path}</code>
+              </p>
+              <pre className="drift__text">{drift.text}</pre>
+            </section>
+          )}
+
           {tasks && (
             <section>
               <h2>Tasks ({tasks.tasks.length})</h2>
+              <a
+                className="tasks__download"
+                href={tasksJsonUrl(project.id)}
+                download="tasks.json"
+              >
+                Download tasks.json
+              </a>
               <ol className="tasks">
                 {tasks.tasks.map((task) => (
                   <li key={task.id}>
@@ -253,6 +377,13 @@ function App() {
           )}
         </aside>
       </main>
+
+      {attaching && (
+        <DirectoryPicker
+          onCancel={() => setAttaching(false)}
+          onChoose={(path) => void attachCodebase(path)}
+        />
+      )}
     </div>
   )
 }

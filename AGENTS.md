@@ -28,7 +28,8 @@ agent-execution loop (MVP stops at tasks.json).
   `backend/services/`: `storage.py` (JSON file IO, one file per project),
   `llm.py` (OpenAI-compatible + instructor client), `validate.py`, `compile.py`,
   `graph_payload.py` (the ONE place graphs are pruned for an LLM prompt — both
-  passes share it; see "LLM payload" below),
+  passes share it; see "LLM payload" below), `drift.py` (read-only rescan +
+  diff; see "Snapshot and drift"),
   `importer.py` (thin wrapper over `tools/import_repo.py` — it holds no scanning
   logic of its own; `from tools import import_repo` works because the repo root
   is on `sys.path` and `tools/` is an implicit namespace package).
@@ -90,7 +91,9 @@ agent-execution loop (MVP stops at tasks.json).
   (`mcp/server.py`). Versions: MCP integration `0.1`, MetaSpecs project
   `v0.0.1`. It proxies the HTTP API (`METASPECS_API_URL`, default
   `http://localhost:8000`) with tools for project CRUD, graph read/write,
-  node/wire editing, reports, validate and compile. Its `NODE_TYPES` must track
+  node/wire editing, reports, validate and compile, plus `import_codebase` /
+  `reimport_project` / `check_drift` — the scan side of the loop, so an agent
+  can ask what moved without going through the UI. Its `NODE_TYPES` must track
   the persistable types in `src/types.ts` (`preview` stays rejected), and its
   `EDGE_KINDS` must mirror `EDGE_KIND_NAMES` in `backend/models.py` (the repo
   root is not importable from `mcp/`). `set_edge_kind` leaves `protocol` alone
@@ -178,6 +181,35 @@ Stored graph JSON is serializable React Flow v12 state:
 A graph is a point-in-time **copy** of a codebase, never a live view. The loop:
 import → hand-edit the graph → hand it to a coding agent → re-import → diff.
 
+The whole loop is reachable from the UI and from MCP, and the two rescan
+actions are deliberately NOT the same thing:
+
+- **Drift check** (`POST /api/projects/{id}/drift`, `services/drift.py`, the
+  header's "Check drift", MCP `check_drift`) is READ-ONLY. It scans
+  `repo_path` and diffs it against the stored graphs. It must never write a
+  graph — the stored graph is the hand-edited spec, i.e. the thing reality is
+  being compared against. Orientation is stored=OLD, scan=NEW, so "added"
+  reads as "the code has this, your spec does not".
+- **Re-import** (`POST /api/projects/{id}/reimport`,
+  `importer.reimport_into_project`, the header's "Re-import", MCP
+  `reimport_project`) is DESTRUCTIVE: it replaces all three layers, so
+  hand-drawn nodes are lost. It delegates to `import_into_project`, which is
+  what keeps the write under the project lock. The UI confirms first.
+
+A project with no `repo_path` (made by hand, or restored from the committed
+`data/projects/metaspecs.json`) has nothing to rescan: both routes 400 with
+"this project was not imported from a codebase", and the header offers
+"Attach codebase…" instead, which is the ordinary `POST /import` aimed at the
+open project rather than a new one. Attaching runs a real import, so it
+overwrites the graphs and the UI confirms when the project already has nodes.
+
+`GET /api/projects/{id}/tasks.json` serves the stored `TaskList` as a
+`Content-Disposition: attachment` download (404 before the first compile) —
+the artifact you hand to a coding agent. The drift panel renders the server's
+`text` field verbatim in a `<pre>`; that string comes from
+`diff_graphs.render_text`, the same renderer the CLI uses, and the frontend
+must not reimplement the formatting.
+
 - `tools/import_repo.py` must stay **byte-deterministic**: same tree in, same
   JSON out. No timestamps, no uuids, sorted everything. Node ids are derived
   from the path (`py:backend/services/storage.py`, `pkg:backend/services`,
@@ -244,6 +276,9 @@ import → hand-edit the graph → hand it to a coding agent → re-import → d
   `data.path` — a node added by hand in the UI has a random id and would never
   id-match its imported counterpart. Those show under "reconciled by path"
   (class nodes share their module's `path`, so only the first claims it).
+  Data and presentation are already split — `build_report()` returns a plain
+  dict, `render_text()` renders it — which is why `services/drift.py` imports
+  both instead of anything being reimplemented backend-side. Keep that split.
   `position`/`style`/`measured` are ignored unless `--include-layout`; node and
   method `notes` docstrings are compared like any other field.
 

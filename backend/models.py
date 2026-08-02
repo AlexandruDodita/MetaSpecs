@@ -182,6 +182,25 @@ class ImportResult(BaseModel):
     layers: dict[str, int] = Field(default_factory=dict)   # layer -> node count
 
 
+class DriftRequest(BaseModel):
+    max_files: int = 0          # 0 = use the scanner default
+
+
+class ReimportRequest(BaseModel):
+    max_files: int = 0          # 0 = use the scanner default
+
+
+class DriftReport(BaseModel):
+    project_id: str
+    root: str = ""
+    path: str = ""
+    drift: bool = False
+    totals: dict[str, int] = Field(default_factory=dict)
+    layers: dict[str, Any] = Field(default_factory=dict)
+    text: str = ""
+    stats: ImportStats = Field(default_factory=ImportStats)
+
+
 class DirEntry(BaseModel):
     name: str
     path: str

@@ -419,5 +419,49 @@ def compile_project(project_id: str, scope: str) -> dict:
     return _json("POST", f"/api/projects/{project_id}/compile", json={"scope": scope})
 
 
+@server.tool(
+    description=(
+        "Scan an absolute local path and REPLACE all three layers (backend, "
+        "db, frontend) of the project with the scan result. Destructive: "
+        "hand-drawn nodes are lost. Use check_drift for the non-destructive "
+        "way to see what changed."
+    )
+)
+def import_codebase(project_id: str, path: str, max_files: int = 0) -> dict:
+    return _json(
+        "POST",
+        f"/api/projects/{project_id}/import",
+        json={"path": path, "max_files": max_files},
+    )
+
+
+@server.tool(
+    description=(
+        "Rescan the path the project was imported from and OVERWRITE all "
+        "three layers with the fresh scan, so hand-drawn nodes are lost. "
+        "Destructive. Use check_drift as the non-destructive way to see "
+        "what changed."
+    )
+)
+def reimport_project(project_id: str, max_files: int = 0) -> dict:
+    return _json(
+        "POST", f"/api/projects/{project_id}/reimport", json={"max_files": max_files}
+    )
+
+
+@server.tool(
+    description=(
+        "Read-only drift check: scan the code on disk and compare it against "
+        "the stored graph. Returns what the code has that the graph does not "
+        "(added), what the graph has that the code does not (removed), and "
+        "what changed — without modifying anything."
+    )
+)
+def check_drift(project_id: str, max_files: int = 0) -> dict:
+    return _json(
+        "POST", f"/api/projects/{project_id}/drift", json={"max_files": max_files}
+    )
+
+
 if __name__ == "__main__":
     server.run()

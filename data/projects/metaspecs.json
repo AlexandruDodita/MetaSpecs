@@ -289,11 +289,51 @@
           }
         },
         {
-          "id": "py:backend/models.py#FlowElement",
+          "id": "py:backend/models.py#DriftReport",
           "type": "class",
           "position": {
             "x": 0.0,
             "y": 1220.0
+          },
+          "data": {
+            "label": "DriftReport",
+            "path": "backend/models.py",
+            "description": "",
+            "notes": "",
+            "fields": [],
+            "methods": []
+          },
+          "style": {
+            "width": 260,
+            "height": 180
+          }
+        },
+        {
+          "id": "py:backend/models.py#DriftRequest",
+          "type": "class",
+          "position": {
+            "x": 0.0,
+            "y": 1340.0
+          },
+          "data": {
+            "label": "DriftRequest",
+            "path": "backend/models.py",
+            "description": "",
+            "notes": "",
+            "fields": [],
+            "methods": []
+          },
+          "style": {
+            "width": 260,
+            "height": 180
+          }
+        },
+        {
+          "id": "py:backend/models.py#FlowElement",
+          "type": "class",
+          "position": {
+            "x": 0.0,
+            "y": 1460.0
           },
           "data": {
             "label": "FlowElement",
@@ -324,7 +364,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 1340.0
+            "y": 1580.0
           },
           "data": {
             "label": "GraphEdge",
@@ -344,7 +384,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 1460.0
+            "y": 1700.0
           },
           "data": {
             "label": "GraphNode",
@@ -364,7 +404,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 1580.0
+            "y": 1820.0
           },
           "data": {
             "label": "ImportRequest",
@@ -384,7 +424,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 1700.0
+            "y": 1940.0
           },
           "data": {
             "label": "ImportResult",
@@ -404,7 +444,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 1820.0
+            "y": 2060.0
           },
           "data": {
             "label": "ImportStats",
@@ -424,7 +464,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 1940.0
+            "y": 2180.0
           },
           "data": {
             "label": "Issue",
@@ -444,7 +484,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2060.0
+            "y": 2300.0
           },
           "data": {
             "label": "LayerGraph",
@@ -464,7 +504,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2180.0
+            "y": 2420.0
           },
           "data": {
             "label": "Project",
@@ -505,7 +545,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2300.0
+            "y": 2540.0
           },
           "data": {
             "label": "ProjectInfo",
@@ -525,7 +565,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2420.0
+            "y": 2660.0
           },
           "data": {
             "label": "ProjectList",
@@ -545,10 +585,30 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2540.0
+            "y": 2780.0
           },
           "data": {
             "label": "ProjectReports",
+            "path": "backend/models.py",
+            "description": "",
+            "notes": "",
+            "fields": [],
+            "methods": []
+          },
+          "style": {
+            "width": 260,
+            "height": 180
+          }
+        },
+        {
+          "id": "py:backend/models.py#ReimportRequest",
+          "type": "class",
+          "position": {
+            "x": 0.0,
+            "y": 2900.0
+          },
+          "data": {
+            "label": "ReimportRequest",
             "path": "backend/models.py",
             "description": "",
             "notes": "",
@@ -565,7 +625,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2660.0
+            "y": 3020.0
           },
           "data": {
             "label": "Task",
@@ -585,7 +645,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2780.0
+            "y": 3140.0
           },
           "data": {
             "label": "TaskList",
@@ -605,7 +665,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 2900.0
+            "y": 3260.0
           },
           "data": {
             "label": "ValidateRequest",
@@ -625,7 +685,7 @@
           "type": "class",
           "position": {
             "x": 0.0,
-            "y": 3020.0
+            "y": 3380.0
           },
           "data": {
             "label": "ValidationReport",
@@ -665,6 +725,19 @@
                 "notes": "",
                 "calls": [
                   "compile.compile_tasks",
+                  "storage.read_project"
+                ]
+              },
+              {
+                "id": "export_tasks",
+                "kind": "",
+                "name": "export_tasks",
+                "visibility": "public",
+                "returnType": "JSONResponse",
+                "params": "project_id",
+                "steps": [],
+                "notes": "",
+                "calls": [
                   "storage.read_project"
                 ]
               }
@@ -813,7 +886,7 @@
             "label": "imports",
             "path": "backend/routes/imports.py",
             "description": "",
-            "notes": "Repo import route: scan a local checkout into a project.",
+            "notes": "Repo import routes: scan a local checkout into a project, diff or rescan it.",
             "fields": [
               {
                 "name": "MAX_FILES_LIMIT",
@@ -833,6 +906,32 @@
                 "notes": "",
                 "calls": [
                   "importer.import_into_project"
+                ]
+              },
+              {
+                "id": "reimport_route",
+                "kind": "",
+                "name": "reimport_route",
+                "visibility": "public",
+                "returnType": "ImportResult",
+                "params": "project_id, body",
+                "steps": [],
+                "notes": "",
+                "calls": [
+                  "importer.reimport_into_project"
+                ]
+              },
+              {
+                "id": "drift_route",
+                "kind": "",
+                "name": "drift_route",
+                "visibility": "public",
+                "returnType": "DriftReport",
+                "params": "project_id, body",
+                "steps": [],
+                "notes": "",
+                "calls": [
+                  "drift.check_drift"
                 ]
               }
             ]
@@ -1024,11 +1123,48 @@
           }
         },
         {
-          "id": "py:backend/services/graph_payload.py",
+          "id": "py:backend/services/drift.py",
           "type": "file",
           "position": {
             "x": 800.0,
             "y": 480.0
+          },
+          "data": {
+            "label": "drift",
+            "path": "backend/services/drift.py",
+            "description": "",
+            "notes": "Drift check: compare stored graphs against a fresh scan of the repo.\n\nREAD-ONLY by design: a drift check never writes the graphs, because the stored\ngraph is the hand-edited spec that reality is being diffed against. Re-import\n(see importer.reimport_into_project) is the destructive counterpart.",
+            "fields": [],
+            "methods": [
+              {
+                "id": "check_drift",
+                "kind": "",
+                "name": "check_drift",
+                "visibility": "public",
+                "returnType": "dict",
+                "params": "project_id, max_files",
+                "steps": [],
+                "notes": "Scan the project's repo path and diff it against the stored graphs.",
+                "calls": [
+                  "diff_graphs.build_report",
+                  "diff_graphs.render_text",
+                  "import_repo.build",
+                  "storage.read_project"
+                ]
+              }
+            ]
+          },
+          "style": {
+            "width": 320,
+            "height": 240
+          }
+        },
+        {
+          "id": "py:backend/services/graph_payload.py",
+          "type": "file",
+          "position": {
+            "x": 800.0,
+            "y": 700.0
           },
           "data": {
             "label": "graph_payload",
@@ -1108,7 +1244,7 @@
           "type": "class",
           "position": {
             "x": 800.0,
-            "y": 740.0
+            "y": 960.0
           },
           "data": {
             "label": "GraphTooLargeError",
@@ -1128,7 +1264,7 @@
           "type": "file",
           "position": {
             "x": 800.0,
-            "y": 700.0
+            "y": 920.0
           },
           "data": {
             "label": "importer",
@@ -1152,6 +1288,19 @@
                   "storage.read_project",
                   "storage.update_project"
                 ]
+              },
+              {
+                "id": "reimport_into_project",
+                "kind": "",
+                "name": "reimport_into_project",
+                "visibility": "public",
+                "returnType": "ImportResult",
+                "params": "project_id, max_files",
+                "steps": [],
+                "notes": "Rescan the project's stored repo_path and overwrite its graphs.\n\nDestructive: the scan replaces all three layers, so hand-drawn nodes are\nlost. The lock stays inside import_into_project (via update_project).",
+                "calls": [
+                  "storage.read_project"
+                ]
               }
             ]
           },
@@ -1165,7 +1314,7 @@
           "type": "class",
           "position": {
             "x": 800.0,
-            "y": 960.0
+            "y": 1180.0
           },
           "data": {
             "label": "ImportPathError",
@@ -1185,7 +1334,7 @@
           "type": "class",
           "position": {
             "x": 800.0,
-            "y": 1080.0
+            "y": 1300.0
           },
           "data": {
             "label": "ProjectMissing",
@@ -1205,7 +1354,7 @@
           "type": "file",
           "position": {
             "x": 800.0,
-            "y": 920.0
+            "y": 1140.0
           },
           "data": {
             "label": "llm",
@@ -1292,7 +1441,7 @@
           "type": "class",
           "position": {
             "x": 800.0,
-            "y": 1180.0
+            "y": 1400.0
           },
           "data": {
             "label": "LLMConfigError",
@@ -1312,7 +1461,7 @@
           "type": "class",
           "position": {
             "x": 800.0,
-            "y": 1300.0
+            "y": 1520.0
           },
           "data": {
             "label": "RoleConfig",
@@ -1332,7 +1481,7 @@
           "type": "file",
           "position": {
             "x": 800.0,
-            "y": 1140.0
+            "y": 1360.0
           },
           "data": {
             "label": "storage",
@@ -1558,7 +1707,7 @@
           "type": "class",
           "position": {
             "x": 800.0,
-            "y": 1400.0
+            "y": 1620.0
           },
           "data": {
             "label": "ProjectNotFound",
@@ -1578,7 +1727,7 @@
           "type": "file",
           "position": {
             "x": 800.0,
-            "y": 1360.0
+            "y": 1580.0
           },
           "data": {
             "label": "validate",
@@ -1893,6 +2042,36 @@
                 "visibility": "public",
                 "returnType": "dict",
                 "params": "project_id, scope",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "import_codebase",
+                "kind": "",
+                "name": "import_codebase",
+                "visibility": "public",
+                "returnType": "dict",
+                "params": "project_id, path, max_files",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "reimport_project",
+                "kind": "",
+                "name": "reimport_project",
+                "visibility": "public",
+                "returnType": "dict",
+                "params": "project_id, max_files",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "check_drift",
+                "kind": "",
+                "name": "check_drift",
+                "visibility": "public",
+                "returnType": "dict",
+                "params": "project_id, max_files",
                 "steps": [],
                 "notes": ""
               }
@@ -3389,6 +3568,14 @@
           "protocol": ""
         },
         {
+          "id": "e:pkg:backend/services-->py:backend/services/drift.py",
+          "source": "pkg:backend/services",
+          "target": "py:backend/services/drift.py",
+          "label": "",
+          "kind": "contains",
+          "protocol": ""
+        },
+        {
           "id": "e:pkg:backend/services-->py:backend/services/graph_payload.py",
           "source": "pkg:backend/services",
           "target": "py:backend/services/graph_payload.py",
@@ -3533,6 +3720,22 @@
           "protocol": ""
         },
         {
+          "id": "e:py:backend/models.py-->py:backend/models.py#DriftReport",
+          "source": "py:backend/models.py",
+          "target": "py:backend/models.py#DriftReport",
+          "label": "",
+          "kind": "contains",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/models.py-->py:backend/models.py#DriftRequest",
+          "source": "py:backend/models.py",
+          "target": "py:backend/models.py#DriftRequest",
+          "label": "",
+          "kind": "contains",
+          "protocol": ""
+        },
+        {
           "id": "e:py:backend/models.py-->py:backend/models.py#FlowElement",
           "source": "py:backend/models.py",
           "target": "py:backend/models.py#FlowElement",
@@ -3624,6 +3827,14 @@
           "id": "e:py:backend/models.py-->py:backend/models.py#ProjectReports",
           "source": "py:backend/models.py",
           "target": "py:backend/models.py#ProjectReports",
+          "label": "",
+          "kind": "contains",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/models.py-->py:backend/models.py#ReimportRequest",
+          "source": "py:backend/models.py",
+          "target": "py:backend/models.py#ReimportRequest",
           "label": "",
           "kind": "contains",
           "protocol": ""
@@ -3757,6 +3968,22 @@
           "protocol": "in-process"
         },
         {
+          "id": "e:py:backend/routes/imports.py-->py:backend/services/drift.py",
+          "source": "py:backend/routes/imports.py",
+          "target": "py:backend/services/drift.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/routes/imports.py-->py:backend/services/drift.py-2",
+          "source": "py:backend/routes/imports.py",
+          "target": "py:backend/services/drift.py",
+          "label": "check_drift",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
           "id": "e:py:backend/routes/imports.py-->py:backend/services/importer.py",
           "source": "py:backend/routes/imports.py",
           "target": "py:backend/services/importer.py",
@@ -3768,7 +3995,7 @@
           "id": "e:py:backend/routes/imports.py-->py:backend/services/importer.py-2",
           "source": "py:backend/routes/imports.py",
           "target": "py:backend/services/importer.py",
-          "label": "import_into_project",
+          "label": "import_into_project, reimport_into_proj\u2026",
           "kind": "calls",
           "protocol": ""
         },
@@ -3913,6 +4140,70 @@
           "source": "py:backend/services/compile.py",
           "target": "py:backend/services/storage.py",
           "label": "write_scope, write_tasks",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:backend/models.py",
+          "source": "py:backend/services/drift.py",
+          "target": "py:backend/models.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:backend/services/importer.py",
+          "source": "py:backend/services/drift.py",
+          "target": "py:backend/services/importer.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:backend/services/storage.py",
+          "source": "py:backend/services/drift.py",
+          "target": "py:backend/services/storage.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:backend/services/storage.py-2",
+          "source": "py:backend/services/drift.py",
+          "target": "py:backend/services/storage.py",
+          "label": "read_project",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:tools/diff_graphs.py",
+          "source": "py:backend/services/drift.py",
+          "target": "py:tools/diff_graphs.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:tools/diff_graphs.py-2",
+          "source": "py:backend/services/drift.py",
+          "target": "py:tools/diff_graphs.py",
+          "label": "build_report, render_text",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:tools/import_repo.py",
+          "source": "py:backend/services/drift.py",
+          "target": "py:tools/import_repo.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/drift.py-->py:tools/import_repo.py-2",
+          "source": "py:backend/services/drift.py",
+          "target": "py:tools/import_repo.py",
+          "label": "build",
           "kind": "calls",
           "protocol": ""
         },
@@ -5418,10 +5709,14 @@
                 "steps": [],
                 "notes": "",
                 "calls": [
+                  "api.ts.checkDrift",
                   "api.ts.getProject",
                   "api.ts.getProjectReports",
+                  "api.ts.importRepo",
+                  "api.ts.reimportRepo",
                   "api.ts.runCompile",
                   "api.ts.runValidate",
+                  "api.ts.tasksJsonUrl",
                   "store.ts.useGraphStore",
                   "useAutosave.ts.useAutosave"
                 ]
@@ -5554,6 +5849,36 @@
                 "visibility": "public",
                 "returnType": "",
                 "params": "projectId, path",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "reimportRepo",
+                "kind": "",
+                "name": "reimportRepo",
+                "visibility": "public",
+                "returnType": "",
+                "params": "projectId",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "checkDrift",
+                "kind": "",
+                "name": "checkDrift",
+                "visibility": "public",
+                "returnType": "",
+                "params": "projectId",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "tasksJsonUrl",
+                "kind": "",
+                "name": "tasksJsonUrl",
+                "visibility": "public",
+                "returnType": "",
+                "params": "projectId",
                 "steps": [],
                 "notes": ""
               },
@@ -7574,6 +7899,11 @@
                 "type": "interface"
               },
               {
+                "name": "DriftReport",
+                "visibility": "public",
+                "type": "interface"
+              },
+              {
                 "name": "DirEntry",
                 "visibility": "public",
                 "type": "interface"
@@ -7896,9 +8226,17 @@
           "id": "e:ts:frontend/src/App.tsx-->ts:frontend/src/api.ts-2",
           "source": "ts:frontend/src/App.tsx",
           "target": "ts:frontend/src/api.ts",
-          "label": "getProject, getProjectReports, runCompi\u2026",
+          "label": "checkDrift, getProject, getProjectRepor\u2026",
           "kind": "calls",
           "protocol": ""
+        },
+        {
+          "id": "e:ts:frontend/src/App.tsx-->ts:frontend/src/components/DirectoryPicker.tsx",
+          "source": "ts:frontend/src/App.tsx",
+          "target": "ts:frontend/src/components/DirectoryPicker.tsx",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
         },
         {
           "id": "e:ts:frontend/src/App.tsx-->ts:frontend/src/components/GraphCanvas.tsx",

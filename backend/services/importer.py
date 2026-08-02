@@ -71,3 +71,17 @@ def import_into_project(project_id: str, raw_path: str, max_files: int) -> Impor
         stats=ImportStats.model_validate(data.get("stats", {})),
         layers={layer: len(project.graphs[layer].nodes) for layer in LAYER_NAMES},
     )
+
+
+def reimport_into_project(project_id: str, max_files: int) -> ImportResult:
+    """Rescan the project's stored repo_path and overwrite its graphs.
+
+    Destructive: the scan replaces all three layers, so hand-drawn nodes are
+    lost. The lock stays inside import_into_project (via update_project).
+    """
+    project = storage.read_project(project_id)
+    if project is None:
+        raise ProjectMissing(project_id)
+    if not project.repo_path:
+        raise ImportPathError("this project was not imported from a codebase")
+    return import_into_project(project_id, project.repo_path, max_files)
