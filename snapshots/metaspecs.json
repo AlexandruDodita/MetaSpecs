@@ -164,6 +164,11 @@
                 "type": "const"
               },
               {
+                "name": "NODE_TYPE_NAMES",
+                "visibility": "public",
+                "type": "const"
+              },
+              {
                 "name": "TRANSIENT_FLOW_FIELDS",
                 "visibility": "public",
                 "type": "const"
@@ -749,6 +754,16 @@
                 ]
               },
               {
+                "id": "check_graph_integrity",
+                "kind": "",
+                "name": "check_graph_integrity",
+                "visibility": "public",
+                "returnType": "list[str]",
+                "params": "graph",
+                "steps": [],
+                "notes": "Human-readable structural problems with a graph, capped at 10."
+              },
+              {
                 "id": "get_graph",
                 "kind": "",
                 "name": "get_graph",
@@ -970,19 +985,6 @@
             ],
             "methods": [
               {
-                "id": "_graph_payload",
-                "kind": "",
-                "name": "_graph_payload",
-                "visibility": "private",
-                "returnType": "dict",
-                "params": "project_id",
-                "steps": [],
-                "notes": "",
-                "calls": [
-                  "storage.read_graph"
-                ]
-              },
-              {
                 "id": "compile_tasks",
                 "kind": "",
                 "name": "compile_tasks",
@@ -992,6 +994,7 @@
                 "steps": [],
                 "notes": "",
                 "calls": [
+                  "graph_payload.payload_for_llm",
                   "llm.chat_json",
                   "storage.write_scope",
                   "storage.write_tasks"
@@ -1015,11 +1018,111 @@
           }
         },
         {
-          "id": "py:backend/services/importer.py",
+          "id": "py:backend/services/graph_payload.py",
           "type": "file",
           "position": {
             "x": 800,
             "y": 480
+          },
+          "data": {
+            "label": "graph_payload",
+            "path": "backend/services/graph_payload.py",
+            "description": "",
+            "notes": "Prune the stored graphs into the compact JSON sent to an LLM.\n\nLayout keys, logic steps and `calls` arrays are pure noise to the model, so\nthis strips everything except the identity of each node/edge plus the\ndomain content: labels, paths, descriptions, notes, table columns, class\nfields, and method signatures.",
+            "fields": [
+              {
+                "name": "MAX_PAYLOAD_CHARS",
+                "visibility": "public",
+                "type": "const"
+              },
+              {
+                "name": "NODE_KEYS",
+                "visibility": "public",
+                "type": "const"
+              },
+              {
+                "name": "EDGE_KEYS",
+                "visibility": "public",
+                "type": "const"
+              }
+            ],
+            "methods": [
+              {
+                "id": "_signature",
+                "kind": "",
+                "name": "_signature",
+                "visibility": "private",
+                "returnType": "str",
+                "params": "method",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "_prune_node",
+                "kind": "",
+                "name": "_prune_node",
+                "visibility": "private",
+                "returnType": "dict[str, Any]",
+                "params": "node",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "_prune_edge",
+                "kind": "",
+                "name": "_prune_edge",
+                "visibility": "private",
+                "returnType": "dict[str, Any]",
+                "params": "edge",
+                "steps": [],
+                "notes": ""
+              },
+              {
+                "id": "payload_for_llm",
+                "kind": "",
+                "name": "payload_for_llm",
+                "visibility": "public",
+                "returnType": "str",
+                "params": "project_id",
+                "steps": [],
+                "notes": "Pruned, JSON-serialized graphs for all layers, ready for a prompt.",
+                "calls": [
+                  "storage.read_graph"
+                ]
+              }
+            ]
+          },
+          "style": {
+            "width": 320,
+            "height": 240
+          }
+        },
+        {
+          "id": "py:backend/services/graph_payload.py#GraphTooLargeError",
+          "type": "class",
+          "position": {
+            "x": 800,
+            "y": 740
+          },
+          "data": {
+            "label": "GraphTooLargeError",
+            "path": "backend/services/graph_payload.py",
+            "description": "",
+            "notes": "The pruned graph payload still exceeds what we will send to an LLM.",
+            "fields": [],
+            "methods": []
+          },
+          "style": {
+            "width": 260,
+            "height": 180
+          }
+        },
+        {
+          "id": "py:backend/services/importer.py",
+          "type": "file",
+          "position": {
+            "x": 800,
+            "y": 700
           },
           "data": {
             "label": "importer",
@@ -1041,7 +1144,7 @@
                   "import_repo.build",
                   "models.now_utc",
                   "storage.read_project",
-                  "storage.write_project"
+                  "storage.update_project"
                 ]
               }
             ]
@@ -1056,7 +1159,7 @@
           "type": "class",
           "position": {
             "x": 800,
-            "y": 740
+            "y": 960
           },
           "data": {
             "label": "ImportPathError",
@@ -1076,7 +1179,7 @@
           "type": "class",
           "position": {
             "x": 800,
-            "y": 860
+            "y": 1080
           },
           "data": {
             "label": "ProjectMissing",
@@ -1096,7 +1199,7 @@
           "type": "file",
           "position": {
             "x": 800,
-            "y": 700
+            "y": 920
           },
           "data": {
             "label": "llm",
@@ -1183,7 +1286,7 @@
           "type": "class",
           "position": {
             "x": 800,
-            "y": 960
+            "y": 1180
           },
           "data": {
             "label": "LLMConfigError",
@@ -1203,7 +1306,7 @@
           "type": "class",
           "position": {
             "x": 800,
-            "y": 1080
+            "y": 1300
           },
           "data": {
             "label": "RoleConfig",
@@ -1223,7 +1326,7 @@
           "type": "file",
           "position": {
             "x": 800,
-            "y": 920
+            "y": 1140
           },
           "data": {
             "label": "storage",
@@ -1342,6 +1445,16 @@
                 "notes": ""
               },
               {
+                "id": "update_project",
+                "kind": "",
+                "name": "update_project",
+                "visibility": "public",
+                "returnType": "Project",
+                "params": "project_id, mutate",
+                "steps": [],
+                "notes": "Locked read-modify-write: mutate the project in place, then persist."
+              },
+              {
                 "id": "create_project",
                 "kind": "",
                 "name": "create_project",
@@ -1439,7 +1552,7 @@
           "type": "class",
           "position": {
             "x": 800,
-            "y": 1180
+            "y": 1400
           },
           "data": {
             "label": "ProjectNotFound",
@@ -1459,7 +1572,7 @@
           "type": "file",
           "position": {
             "x": 800,
-            "y": 1140
+            "y": 1360
           },
           "data": {
             "label": "validate",
@@ -1475,19 +1588,6 @@
             ],
             "methods": [
               {
-                "id": "_graph_payload",
-                "kind": "",
-                "name": "_graph_payload",
-                "visibility": "private",
-                "returnType": "dict",
-                "params": "project_id",
-                "steps": [],
-                "notes": "",
-                "calls": [
-                  "storage.read_graph"
-                ]
-              },
-              {
                 "id": "validate",
                 "kind": "",
                 "name": "validate",
@@ -1497,6 +1597,7 @@
                 "steps": [],
                 "notes": "",
                 "calls": [
+                  "graph_payload.payload_for_llm",
                   "llm.chat_json",
                   "storage.write_scope",
                   "storage.write_validation"
@@ -3282,6 +3383,14 @@
           "protocol": ""
         },
         {
+          "id": "e:pkg:backend/services-->py:backend/services/graph_payload.py",
+          "source": "pkg:backend/services",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "",
+          "kind": "contains",
+          "protocol": ""
+        },
+        {
           "id": "e:pkg:backend/services-->py:backend/services/importer.py",
           "source": "pkg:backend/services",
           "target": "py:backend/services/importer.py",
@@ -3570,6 +3679,14 @@
           "protocol": ""
         },
         {
+          "id": "e:py:backend/routes/compile.py-->py:backend/services/graph_payload.py",
+          "source": "py:backend/routes/compile.py",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
           "id": "e:py:backend/routes/compile.py-->py:backend/services/llm.py",
           "source": "py:backend/routes/compile.py",
           "target": "py:backend/services/llm.py",
@@ -3690,6 +3807,14 @@
           "protocol": "in-process"
         },
         {
+          "id": "e:py:backend/routes/validate.py-->py:backend/services/graph_payload.py",
+          "source": "py:backend/routes/validate.py",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
           "id": "e:py:backend/routes/validate.py-->py:backend/services/llm.py",
           "source": "py:backend/routes/validate.py",
           "target": "py:backend/services/llm.py",
@@ -3738,6 +3863,22 @@
           "protocol": "in-process"
         },
         {
+          "id": "e:py:backend/services/compile.py-->py:backend/services/graph_payload.py",
+          "source": "py:backend/services/compile.py",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/compile.py-->py:backend/services/graph_payload.py-2",
+          "source": "py:backend/services/compile.py",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "payload_for_llm",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
           "id": "e:py:backend/services/compile.py-->py:backend/services/llm.py",
           "source": "py:backend/services/compile.py",
           "target": "py:backend/services/llm.py",
@@ -3765,7 +3906,39 @@
           "id": "e:py:backend/services/compile.py-->py:backend/services/storage.py-2",
           "source": "py:backend/services/compile.py",
           "target": "py:backend/services/storage.py",
-          "label": "read_graph, write_scope, write_tasks",
+          "label": "write_scope, write_tasks",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/services/graph_payload.py-->py:backend/models.py",
+          "source": "py:backend/services/graph_payload.py",
+          "target": "py:backend/models.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/graph_payload.py-->py:backend/services/graph_payload.py#GraphTooLargeError",
+          "source": "py:backend/services/graph_payload.py",
+          "target": "py:backend/services/graph_payload.py#GraphTooLargeError",
+          "label": "",
+          "kind": "contains",
+          "protocol": ""
+        },
+        {
+          "id": "e:py:backend/services/graph_payload.py-->py:backend/services/storage.py",
+          "source": "py:backend/services/graph_payload.py",
+          "target": "py:backend/services/storage.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/graph_payload.py-->py:backend/services/storage.py-2",
+          "source": "py:backend/services/graph_payload.py",
+          "target": "py:backend/services/storage.py",
+          "label": "read_graph",
           "kind": "calls",
           "protocol": ""
         },
@@ -3813,7 +3986,7 @@
           "id": "e:py:backend/services/importer.py-->py:backend/services/storage.py-2",
           "source": "py:backend/services/importer.py",
           "target": "py:backend/services/storage.py",
-          "label": "read_project, write_project",
+          "label": "read_project, update_project",
           "kind": "calls",
           "protocol": ""
         },
@@ -3890,6 +4063,22 @@
           "protocol": "in-process"
         },
         {
+          "id": "e:py:backend/services/validate.py-->py:backend/services/graph_payload.py",
+          "source": "py:backend/services/validate.py",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "",
+          "kind": "depends-on",
+          "protocol": "in-process"
+        },
+        {
+          "id": "e:py:backend/services/validate.py-->py:backend/services/graph_payload.py-2",
+          "source": "py:backend/services/validate.py",
+          "target": "py:backend/services/graph_payload.py",
+          "label": "payload_for_llm",
+          "kind": "calls",
+          "protocol": ""
+        },
+        {
           "id": "e:py:backend/services/validate.py-->py:backend/services/llm.py",
           "source": "py:backend/services/validate.py",
           "target": "py:backend/services/llm.py",
@@ -3917,7 +4106,7 @@
           "id": "e:py:backend/services/validate.py-->py:backend/services/storage.py-2",
           "source": "py:backend/services/validate.py",
           "target": "py:backend/services/storage.py",
-          "label": "read_graph, write_scope, write_validati\u2026",
+          "label": "write_scope, write_validation",
           "kind": "calls",
           "protocol": ""
         },
@@ -6996,6 +7185,11 @@
                 "type": "type"
               },
               {
+                "name": "WireKind",
+                "visibility": "public",
+                "type": "type"
+              },
+              {
                 "name": "EXPANDED_BY_DEFAULT",
                 "visibility": "public",
                 "type": "const"
@@ -7027,6 +7221,16 @@
               }
             ],
             "methods": [
+              {
+                "id": "inferWireKind",
+                "kind": "",
+                "name": "inferWireKind",
+                "visibility": "public",
+                "returnType": "",
+                "params": "nodes, source, target",
+                "steps": [],
+                "notes": "Infer the kind of a manually drawn wire from the endpoint node types,\nmirroring the importer's semantics: wiring a class/file into a service,\nor a class into a file, is `contains` (membership); class \u2194 class and\nfile \u2194 file (module-level functions) is `calls` (workflow); anything\nelse stays `depends-on`."
+              },
               {
                 "id": "isExpanded",
                 "kind": "",
@@ -8493,20 +8697,20 @@
   },
   "skipped_cross_layer": [],
   "stats": {
-    "files_scanned": 45,
+    "files_scanned": 46,
     "files_skipped": 0,
     "by_language": {
       "javascript": 1,
-      "python": 16,
+      "python": 17,
       "typescript": 28
     },
     "by_layer": {
-      "backend": 16,
+      "backend": 17,
       "db": 0,
       "frontend": 29
     },
-    "node_count": 86,
-    "edge_count": 226,
+    "node_count": 88,
+    "edge_count": 237,
     "warnings": []
   }
 }

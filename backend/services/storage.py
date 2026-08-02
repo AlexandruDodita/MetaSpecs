@@ -9,6 +9,7 @@ import json
 import os
 import secrets
 import threading
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -142,6 +143,14 @@ def write_project(project: Project) -> Project:
     return project
 
 
+def update_project(project_id: str, mutate: Callable[[Project], None]) -> Project:
+    """Locked read-modify-write: mutate the project in place, then persist."""
+    with _project_lock(project_id):
+        project = _require(project_id)
+        mutate(project)
+        return write_project(project)
+
+
 def create_project(name: str) -> Project:
     _ensure_migrated()
     project = Project(id=_make_project_id(), name=name.strip() or "Untitled")
@@ -149,10 +158,10 @@ def create_project(name: str) -> Project:
 
 
 def delete_project(project_id: str) -> bool:
-    path = project_path(project_id)
-    if not path.exists():
+    data = _read_raw(project_id)
+    if data is None or data.get("app") != "metaspecs":
         return False
-    path.unlink()
+    project_path(project_id).unlink()
     return True
 
 
